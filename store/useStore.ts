@@ -38,17 +38,18 @@ export function useStore() {
         const dbClients = await cRes.json();
         setClients(dbClients);
         
-        // אם מחובר מנהל - נטען את הגדרות הקמפיין שלו מהמסד
+        // --- תיקון: טעינת הגדרות קמפיין מהמסד ללקוח המחובר ---
         if (auth.clientId && !auth.isSuperAdmin) {
           const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
-          if (currentClient?.campaign) setCampaign(currentClient.campaign);
+          if (currentClient?.campaign) {
+            setCampaign(currentClient.campaign);
+          }
         }
       }
       
       if (pRes.ok) {
         const allPrizes = await pRes.json();
-        // למנהל מחובר: הצג רק את שלו. לאורח: הצג הכל (הקומפוננטה תפלטר לפי ה-URL)
-        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
+        if (auth.clientId && !auth.isSuperAdmin) {
             setPrizes(allPrizes.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPrizes(allPrizes);
@@ -56,7 +57,7 @@ export function useStore() {
       }
       if (pkgRes.ok) {
         const allPkgs = await pkgRes.json();
-        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
+        if (auth.clientId && !auth.isSuperAdmin) {
             setPackages(allPkgs.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPackages(allPkgs);
@@ -64,7 +65,7 @@ export function useStore() {
       }
       if (dRes.ok) {
         const allDonors = await dRes.json();
-        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
+        if (auth.clientId && !auth.isSuperAdmin) {
             setDonors(allDonors.filter((d: any) => d.clientId === auth.clientId));
         } else {
             setDonors(allDonors);
@@ -115,22 +116,19 @@ export function useStore() {
     }
   }, [auth.isLoggedIn]);
 
-  // Effect to handle state silo based on clientId
+  // --- תיקון: מניעת דריסת נתוני Database על ידי localStorage ישן ---
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId) {
-      if (auth.isSuperAdmin) {
-        // Super admin context
-      } else {
+      if (!auth.isSuperAdmin) {
         const savedData = localStorage.getItem(`${LS_KEY}_data_${auth.clientId}`);
-        if (savedData) {
+        // טוען מהזיכרון המקומי רק אם אין עדיין נתונים מהמסד (למניעת דריסה)
+        if (savedData && campaign === INITIAL_CAMPAIGN) {
           const data = JSON.parse(savedData);
           setCampaign(data.campaign || INITIAL_CAMPAIGN);
           setPrizes(data.prizes || INITIAL_PRIZES);
           setPackages(data.packages || INITIAL_PACKAGES);
           setDonors(data.donors || []);
           setTickets(data.tickets || []);
-        } else {
-          resetData();
         }
       }
     }
@@ -158,11 +156,12 @@ export function useStore() {
         return true;
     }
     
-    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
       const newAuth = { isLoggedIn: true, isSuperAdmin: false, clientId: client.id };
       setAuth(newAuth);
+      // טעינה מיידית אחרי התחברות
+      setTimeout(fetchAllData, 100);
       return true;
     }
     
@@ -186,7 +185,6 @@ export function useStore() {
       email
     };
 
-    // שמירה ב-DB
     try {
       await fetch(`${API_URL}/api/clients`, {
         method: 'POST',
@@ -202,11 +200,11 @@ export function useStore() {
     setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
+  // --- תיקון: עדכון קמפיין ששולח ישירות לשרת ---
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
     
-    // עדכון במסד הנתונים תחת הלקוח המחובר
     if (auth.clientId && !auth.isSuperAdmin) {
       try {
         await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
@@ -220,8 +218,6 @@ export function useStore() {
 
   const addPrize = async (prize: Prize) => {
     const prizeWithClient = { ...prize, clientId: auth.clientId };
-    
-    // שמירה ב-DB
     try {
       const res = await fetch(`${API_URL}/api/prizes`, {
         method: 'POST',
@@ -240,7 +236,6 @@ export function useStore() {
     try {
       await fetch(`${API_URL}/api/prizes/${id}`, { method: 'DELETE' });
     } catch (e) { console.error(e); }
-    
     setPrizes(prev => prev.filter(p => p.id !== id));
     setTickets(prev => prev.filter(t => t.prizeId !== id));
   };
@@ -253,14 +248,11 @@ export function useStore() {
         body: JSON.stringify(updates)
       });
     } catch (e) { console.error(e); }
-    
     setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
   };
 
   const addPackage = async (pkg: Package) => {
     const pkgWithClient = { ...pkg, clientId: auth.clientId };
-    
-    // שמירה ב-DB
     try {
       const res = await fetch(`${API_URL}/api/packages`, {
         method: 'POST',
@@ -276,9 +268,7 @@ export function useStore() {
   };
 
   const deletePackage = async (id: string) => {
-    try {
-      await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' });
-    } catch (e) { console.error(e); }
+    try { await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); } catch (e) { console.error(e); }
     setPackages(prev => prev.filter(p => p.id !== id));
   };
 
@@ -294,13 +284,9 @@ export function useStore() {
   };
 
   const addDonor = async (donor: Donor) => {
-    const matched = [...packages]
-      .sort((a, b) => b.minAmount - a.minAmount)
-      .find(p => donor.totalDonated >= p.minAmount);
-
+    const matched = [...packages].sort((a, b) => b.minAmount - a.minAmount).find(p => donor.totalDonated >= p.minAmount);
     const donorWithPkg = { ...donor, packageId: matched?.id, clientId: auth.clientId };
 
-    // שמירה ב-DB
     try {
       const res = await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
@@ -354,10 +340,8 @@ export function useStore() {
   const assignPackageToDonor = (donorId: string, packageId: string) => {
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return;
-
     setDonors(prev => prev.map(d => d.id === donorId ? { ...d, packageId } : d));
     setTickets(prev => prev.filter(t => t.donorId !== donorId));
-
     const newTickets: Ticket[] = [];
     pkg.rules.forEach(rule => {
       if (rule.prizeId === 'ALL') {
