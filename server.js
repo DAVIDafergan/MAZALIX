@@ -23,16 +23,41 @@ const Donor = mongoose.model('Donor', new mongoose.Schema({}, { strict: false })
 const Prize = mongoose.model('Prize', new mongoose.Schema({}, { strict: false }));
 const Package = mongoose.model('Package', new mongoose.Schema({}, { strict: false }));
 
+// פונקציית עזר לקבלת המודל הנכון לפי שם ה-collection
+const getModel = (name) => {
+  if (name === 'clients') return Client;
+  if (name === 'prizes') return Prize;
+  if (name === 'donors') return Donor;
+  if (name === 'packages') return Package;
+  return null;
+};
+
+// --- נתיב ספציפי לעדכון הגדרות קמפיין של לקוח ---
+app.put('/api/clients/:id/campaign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { campaign } = req.body;
+    
+    const updatedClient = await Client.findOneAndUpdate(
+      { id: id }, 
+      { $set: { campaign: campaign } },
+      { new: true }
+    );
+    
+    if (!updatedClient) return res.status(404).send({ message: "Client not found" });
+    res.send(updatedClient);
+  } catch (e) {
+    console.error("❌ Error updating campaign:", e);
+    res.status(500).send(e);
+  }
+});
+
 // API Routes עם הדפסות לדיבאג
 app.post('/api/:collection', async (req, res) => {
   const { collection } = req.params;
   try {
     console.log(`📩 Received data for ${collection}:`, req.body);
-    let model;
-    if (collection === 'clients') model = Client;
-    else if (collection === 'prizes') model = Prize;
-    else if (collection === 'donors') model = Donor;
-    else if (collection === 'packages') model = Package;
+    let model = getModel(collection);
 
     const doc = await model.create(req.body);
     res.status(201).send(doc);
@@ -45,10 +70,40 @@ app.post('/api/:collection', async (req, res) => {
 app.get('/api/:collection', async (req, res) => {
   const { collection } = req.params;
   try {
-    let model = (collection === 'clients') ? Client : (collection === 'prizes' ? Prize : (collection === 'donors' ? Donor : Package));
+    let model = getModel(collection);
     const data = await model.find();
     res.send(data);
   } catch (e) { res.status(500).send(e); }
+});
+
+// --- נתיב עדכון כללי (עבור פרסים, חבילות וכו') ---
+app.put('/api/:collection/:id', async (req, res) => {
+  const { collection, id } = req.params;
+  try {
+    const model = getModel(collection);
+    const updatedDoc = await model.findOneAndUpdate(
+      { id: id },
+      { $set: req.body },
+      { new: true }
+    );
+    res.send(updatedDoc);
+  } catch (e) {
+    console.error(`❌ Error updating ${collection}:`, e);
+    res.status(500).send(e);
+  }
+});
+
+// --- נתיב מחיקה ---
+app.delete('/api/:collection/:id', async (req, res) => {
+  const { collection, id } = req.params;
+  try {
+    const model = getModel(collection);
+    await model.findOneAndDelete({ id: id });
+    res.send({ message: "Successfully deleted" });
+  } catch (e) {
+    console.error(`❌ Error deleting from ${collection}:`, e);
+    res.status(500).send(e);
+  }
 });
 
 app.use(express.static(path.join(__dirname, 'dist')));
