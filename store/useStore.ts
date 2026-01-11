@@ -50,7 +50,7 @@ export function useStore() {
       
       if (pRes.ok) {
         const allPrizes = await pRes.json();
-        if (auth.clientId && !auth.isSuperAdmin) {
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setPrizes(allPrizes.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPrizes(allPrizes);
@@ -58,7 +58,7 @@ export function useStore() {
       }
       if (pkgRes.ok) {
         const allPkgs = await pkgRes.json();
-        if (auth.clientId && !auth.isSuperAdmin) {
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setPackages(allPkgs.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPackages(allPkgs);
@@ -66,7 +66,7 @@ export function useStore() {
       }
       if (dRes.ok) {
         const allDonors = await dRes.json();
-        if (auth.clientId && !auth.isSuperAdmin) {
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setDonors(allDonors.filter((d: any) => d.clientId === auth.clientId));
         } else {
             setDonors(allDonors);
@@ -117,17 +117,18 @@ export function useStore() {
     }
   }, [auth.isLoggedIn]);
 
-  // --- תיקון: מניעת דריסת נתוני Database על ידי localStorage ישן ---
-  // הסרנו את הקוד שטען קמפיין ופרסים מ-localStorage כדי שרק ה-DB יקבע
+  // --- תיקון: ביטלנו את דריסת נתוני ה-Database על ידי localStorage ישן ---
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId) {
-      if (!auth.isSuperAdmin) {
-        // כאן היינו טוענים localStorage - הסרנו את זה כדי למנוע דריסה של ה-DB
+      if (auth.isSuperAdmin) {
+        // Super admin context
+      } else {
+        // כאן היה הקוד שדרס את הנתונים - הוא בוטל כדי שרק ה-DB יקבע
       }
     }
   }, [auth.isLoggedIn, auth.clientId, auth.isSuperAdmin]);
 
-  // Persist current context data (שומר גיבוי אבל לא דורס טעינה)
+  // Persist current context data (שומר גיבוי בזיכרון המקומי אבל לא דורס טעינה)
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
       const dataToSave = { campaign, prizes, packages, donors, tickets };
