@@ -35,28 +35,42 @@ export function useStore() {
       ]);
       
       if (cRes.ok) setClients(await cRes.json());
+      
       if (pRes.ok) {
         const allPrizes = await pRes.json();
-        // אם מחובר לקוח, נציג רק את שלו. אם לא, נטען את הכל לדף הבית הכללי.
+        // אם מחובר לקוח, נציג רק את שלו. אם לא (דף הבית), נטען את הכל.
         if (auth.clientId && !auth.isSuperAdmin) {
             setPrizes(allPrizes.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPrizes(allPrizes);
         }
       }
-      if (pkgRes.ok) setPackages(await pkgRes.json());
-      if (dRes.ok) setDonors(await dRes.json());
+      if (pkgRes.ok) {
+        const allPkgs = await pkgRes.json();
+        if (auth.clientId && !auth.isSuperAdmin) {
+            setPackages(allPkgs.filter((p: any) => p.clientId === auth.clientId));
+        } else {
+            setPackages(allPkgs);
+        }
+      }
+      if (dRes.ok) {
+        const allDonors = await dRes.json();
+        if (auth.clientId && !auth.isSuperAdmin) {
+            setDonors(allDonors.filter((d: any) => d.clientId === auth.clientId));
+        } else {
+            setDonors(allDonors);
+        }
+      }
     } catch (e) {
       console.error("טעינה מהמסד נכשלה", e);
     }
   };
 
-  // --- מנגנון סינכרון אוטומטי (Migration) ---
-  // הפונקציה הזו לוקחת את מה שיש לך ב-LocalStorage ושולחת למסד הנתונים
+  // --- מנגנון סינכרון אוטומטי (Migration) למסד הנתונים ---
   const syncLocalDataToDb = async () => {
     if (!auth.isLoggedIn) return;
-
-    // סינכרון לקוחות
+    
+    // סנכרון לקוחות קיימים
     for (const client of clients) {
        await fetch(`${API_URL}/api/clients`, {
          method: 'POST',
@@ -65,27 +79,29 @@ export function useStore() {
        });
     }
 
-    // סינכרון פרסים
-    for (const prize of prizes) {
-      await fetch(`${API_URL}/api/prizes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...prize, clientId: auth.clientId })
-      });
+    // סנכרון פרסים קיימים של הלקוח המחובר
+    if (auth.clientId && !auth.isSuperAdmin) {
+        for (const prize of prizes) {
+          await fetch(`${API_URL}/api/prizes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...prize, clientId: auth.clientId })
+          });
+        }
     }
 
-    console.log("✅ כל המידע המקומי סונכרן למסד הנתונים ב-Railway");
-    fetchAllData(); // טעינה מחדש מהמסד אחרי הסינכרון
+    console.log("✅ סינכרון למסד הנתונים הושלם");
+    fetchAllData();
   };
 
-  // טעינת נתונים ראשונית
+  // טעינה ראשונית של הכל
   useEffect(() => {
     fetchAllData();
-  }, [auth.clientId]);
+  }, [auth.clientId, auth.isSuperAdmin]);
 
-  // הפעלת סינכרון חד פעמי כשנכנסים
+  // הפעלת סינכרון כשמנהל מתחבר ויש לו נתונים מקומיים
   useEffect(() => {
-    if (auth.isLoggedIn && clients.length > 0) {
+    if (auth.isLoggedIn && (clients.length > 0 || prizes.length > 0)) {
         syncLocalDataToDb();
     }
   }, [auth.isLoggedIn]);
@@ -133,6 +149,7 @@ export function useStore() {
         return true;
     }
     
+    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד
     const client = clients.find(c => c.username === username && c.password === pass);
     if (client) {
       const newAuth = { isLoggedIn: true, isSuperAdmin: false, clientId: client.id };
@@ -160,6 +177,7 @@ export function useStore() {
       email
     };
 
+    // שמירה ב-DB
     try {
       await fetch(`${API_URL}/api/clients`, {
         method: 'POST',
@@ -179,6 +197,8 @@ export function useStore() {
 
   const addPrize = async (prize: Prize) => {
     const prizeWithClient = { ...prize, clientId: auth.clientId };
+    
+    // שמירה ב-DB
     try {
       await fetch(`${API_URL}/api/prizes`, {
         method: 'POST',
@@ -186,7 +206,7 @@ export function useStore() {
         body: JSON.stringify(prizeWithClient)
       });
     } catch (e) { console.error(e); }
-    
+
     setPrizes(prev => [...prev, prize].sort((a, b) => a.order - b.order));
   };
 
@@ -194,13 +214,14 @@ export function useStore() {
     setPrizes(prev => prev.filter(p => p.id !== id));
     setTickets(prev => prev.filter(t => t.prizeId !== id));
   };
-
   const updatePrize = (id: string, updates: Partial<Prize>) => {
     setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
   };
 
   const addPackage = async (pkg: Package) => {
     const pkgWithClient = { ...pkg, clientId: auth.clientId };
+    
+    // שמירה ב-DB
     try {
       await fetch(`${API_URL}/api/packages`, {
         method: 'POST',
@@ -208,11 +229,11 @@ export function useStore() {
         body: JSON.stringify(pkgWithClient)
       });
     } catch (e) { console.error(e); }
+
     setPackages(prev => [...prev, pkg]);
   };
 
   const deletePackage = (id: string) => setPackages(prev => prev.filter(p => p.id !== id));
-
   const updatePackage = (id: string, updates: Partial<Package>) => {
     setPackages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
@@ -224,6 +245,7 @@ export function useStore() {
 
     const donorWithPkg = { ...donor, packageId: matched?.id, clientId: auth.clientId };
 
+    // שמירה ב-DB
     try {
       await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
@@ -270,19 +292,31 @@ export function useStore() {
   const assignPackageToDonor = (donorId: string, packageId: string) => {
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return;
+
     setDonors(prev => prev.map(d => d.id === donorId ? { ...d, packageId } : d));
     setTickets(prev => prev.filter(t => t.donorId !== donorId));
+
     const newTickets: Ticket[] = [];
     pkg.rules.forEach(rule => {
       if (rule.prizeId === 'ALL') {
         prizes.forEach(prize => {
           for (let i = 0; i < rule.count; i++) {
-            newTickets.push({ id: Math.random().toString(36).substr(2, 9), donorId, prizeId: prize.id, createdAt: Date.now() });
+            newTickets.push({
+              id: Math.random().toString(36).substr(2, 9),
+              donorId: donorId,
+              prizeId: prize.id,
+              createdAt: Date.now()
+            });
           }
         });
       } else {
         for (let i = 0; i < rule.count; i++) {
-          newTickets.push({ id: Math.random().toString(36).substr(2, 9), donorId, prizeId: rule.prizeId, createdAt: Date.now() });
+          newTickets.push({
+            id: Math.random().toString(36).substr(2, 9),
+            donorId: donorId,
+            prizeId: rule.prizeId,
+            createdAt: Date.now()
+          });
         }
       }
     });
@@ -315,29 +349,6 @@ export function useStore() {
   }, [donors, packages]);
 
   return {
-    lang,
-    toggleLanguage,
-    auth,
-    login,
-    logout,
-    clients,
-    addClient,
-    campaign,
-    updateCampaign,
-    prizes,
-    packages,
-    donors,
-    tickets,
-    addPrize,
-    deletePrize,
-    updatePrize,
-    addPackage,
-    deletePackage,
-    updatePackage,
-    addDonor,
-    performDraw,
-    resetData,
-    unmappedDonors,
-    assignPackageToDonor
+    lang, toggleLanguage, auth, login, logout, clients, addClient, campaign, updateCampaign, prizes, packages, donors, tickets, addPrize, deletePrize, updatePrize, addPackage, deletePackage, updatePackage, addDonor, performDraw, resetData, unmappedDonors, assignPackageToDonor
   };
 }
