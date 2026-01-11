@@ -19,7 +19,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [selectedManualPkg, setSelectedManualPkg] = useState<Record<string, string>>({});
 
-  // עדכון סטייט לקוח לכלול את כל השדות שביקשת
+  // עדכון סטייט לקוח לכלול את כל השדות שביקשת - הוספתי טלפון ומייל
   const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', user: '', pass: '' });
   const [newPrize, setNewPrize] = useState<Partial<Prize>>({
     titleHE: '', titleEN: '', descriptionHE: '', descriptionEN: '', value: 0, media: [], status: DrawStatus.OPEN, order: prizes.length, isFeatured: false, isFullPage: false
@@ -157,6 +157,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       alert(isHE ? 'שם משתמש או סיסמא שגויים' : 'Invalid credentials');
     } else {
       setLoginForm({ user: '', pass: '' });
+      // אם זה מנהל על, נעביר אותו לטאב הלקוחות מיד
+      if (loginForm.user === 'admin') setActiveTab('super');
     }
   };
 
@@ -164,23 +166,23 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     login('demo', 'demo');
   };
 
-  // פונקציית הוספת לקוח משופרת
+  // פונקציית הוספת לקוח משופרת הכוללת את כל השדות
   const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name || !newClient.user || !newClient.pass) return;
     
-    // שליחת כל הנתונים לסטור
+    // שליחת כל הנתונים לסטור (כולל טלפון ומייל)
     addClient(newClient.name, newClient.user, newClient.pass, newClient.phone, newClient.email);
     
     setNewClient({ name: '', phone: '', email: '', user: '', pass: '' });
-    alert(isHE ? 'הלקוח נוסף בהצלחה למערכת!' : 'Client added successfully!');
+    alert(isHE ? 'הלקוח נוסף בהצלחה!' : 'Client added successfully!');
   };
 
-  // העתקת לינק לקטלוג הלקוח
+  // פונקציה להעתקת לינק הקטלוג הציבורי של הלקוח
   const copyClientPublicLink = (clientId: string) => {
     const url = `${window.location.origin}/#/catalog/${clientId}`;
     navigator.clipboard.writeText(url);
-    alert(isHE ? 'לינק הפרסום של הלקוח הועתק!' : 'Client catalog link copied!');
+    alert(isHE ? 'קישור הקטלוג הועתק!' : 'Catalog link copied!');
   };
 
   const downloadExcelTemplate = () => {
@@ -368,7 +370,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
         <div className="flex-1 w-full glass-card rounded-xl p-4 md:p-6 min-h-[400px] border border-white/5">
           
-          {/* ניהול לקוחות למנהל על */}
+          {/* תיקון: הוספת תוכן לטאב Super Admin כדי שהדף לא יהיה ריק */}
           {auth.isSuperAdmin && activeTab === 'super' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b border-white/10 pb-4">
@@ -380,25 +382,25 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               <form onSubmit={handleAddClient} className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/5 p-4 rounded-xl">
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם הלקוח / מוסד' : 'Client Name'}</label>
-                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
+                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'טלפון' : 'Phone'}</label>
-                  <input className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
+                  <input className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'אימייל' : 'Email'}</label>
-                  <input type="email" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
+                  <input type="email" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם משתמש לכניסה' : 'Username'}</label>
-                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.user} onChange={e => setNewClient({...newClient, user: e.target.value})} />
+                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newClient.user} onChange={e => setNewClient({...newClient, user: e.target.value})} />
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סיסמת גישה' : 'Password'}</label>
-                  <input required type="text" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.pass} onChange={e => setNewClient({...newClient, pass: e.target.value})} />
+                  <input required type="text" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newClient.pass} onChange={e => setNewClient({...newClient, pass: e.target.value})} />
                 </div>
-                <button type="submit" className="md:col-span-2 luxury-gradient p-3 rounded-xl text-black font-black text-xs uppercase shadow-lg">
+                <button type="submit" className="md:col-span-2 luxury-gradient p-3 rounded-xl text-black font-black text-xs uppercase shadow-lg hover:scale-[1.01] transition-all">
                   {isHE ? 'צור חשבון לקוח' : 'Create Client Account'}
                 </button>
               </form>
@@ -406,10 +408,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               <div className="space-y-3">
                 <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{isHE ? 'רשימת לקוחות פעילים' : 'Active Clients List'}</h3>
                 <div className="grid grid-cols-1 gap-2">
-                  {clients.map((client: any) => (
+                  {clients && clients.map((client: any) => (
                     <div key={client.id} className="p-3 glass-card rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-black gold-text">{client.name.charAt(0)}</div>
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-black gold-text">{client.name?.charAt(0)}</div>
                         <div>
                           <p className="text-xs font-bold">{client.name}</p>
                           <div className="flex gap-2 text-[8px] text-gray-500 italic">
@@ -420,12 +422,15 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       </div>
                       <div className="flex gap-2 w-full md:w-auto">
                         <button onClick={() => copyClientPublicLink(client.id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
-                          <LinkIcon size={12} className="gold-text" /> {isHE ? 'לינק פרסום' : 'Public Link'}
+                          <LinkIcon size={12} className="gold-text" /> {isHE ? 'לינק קטלוג' : 'Catalog Link'}
                         </button>
                         <button className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={12}/></button>
                       </div>
                     </div>
                   ))}
+                  {(!clients || clients.length === 0) && (
+                    <p className="text-center py-10 text-gray-600 italic text-xs">{isHE ? 'אין לקוחות רשומים' : 'No clients registered'}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -724,6 +729,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button>
               </div>
               
+              {/* כפתור העלאה אמיתי לאקסל */}
               <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5">
                 <input 
                   type="file" 
