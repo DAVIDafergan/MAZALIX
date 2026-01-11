@@ -1,60 +1,90 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-require('dotenv').config();
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
 
 const app = express();
-app.use(express.json({ limit: '50mb' })); // תמיכה בהעלאת קבצים גדולים (Base64)
+app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
-// התחברות למסד הנתונים
+// הכתובת הפנימית של Railway שסיפקת
 const MONGO_URI = "mongodb://mongo:fuXtLUJfejdmyazKTgClwAytHgRwLUEV@mongodb.railway.internal:27017";
-// הערה: אם אתה מריץ את השרת מהמחשב בבית, השתמש בכתובת ה-Proxy החיצונית ש-Railway נותן לך
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ Connected to MongoDB on Railway'))
+  .then(() => console.log('✅ Connected to MongoDB Successfully'))
   .catch(err => console.error('❌ Connection error:', err));
 
-// הגדרת מבנה הטבלאות (Schemas)
-const DonorSchema = new mongoose.Schema({
-  name: String, phone: String, email: String, totalDonated: Number, packageId: String
+// הגדרת סכמות (Schemas) - זה מה שיוצר את הטבלאות
+const donorSchema = new mongoose.Schema({
+  name: String,
+  phone: String,
+  email: String,
+  totalDonated: Number,
+  packageId: String
 });
 
-const PrizeSchema = new mongoose.Schema({
-  titleHE: String, titleEN: String, descriptionHE: String, descriptionEN: String,
-  value: Number, media: Array, status: String, order: Number, isFeatured: Boolean, isFullPage: Boolean
+const prizeSchema = new mongoose.Schema({
+  titleHE: String,
+  titleEN: String,
+  descriptionHE: String,
+  descriptionEN: String,
+  value: Number,
+  media: Array,
+  status: String,
+  order: Number,
+  isFeatured: Boolean,
+  isFullPage: Boolean
 });
 
-const PackageSchema = new mongoose.Schema({
-  nameHE: String, nameEN: String, minAmount: Number, rules: Array, image: String, color: String
+const packageSchema = new mongoose.Schema({
+  nameHE: String,
+  nameEN: String,
+  minAmount: Number,
+  rules: Array,
+  image: String,
+  color: String
 });
 
-const Donor = mongoose.model('Donor', DonorSchema);
-const Prize = mongoose.model('Prize', PrizeSchema);
-const Package = mongoose.model('Package', PackageSchema);
+// יצירת המודלים
+const Donor = mongoose.model('Donor', donorSchema);
+const Prize = mongoose.model('Prize', prizeSchema);
+const Package = mongoose.model('Package', packageSchema);
 
-// API Routes - שמירה ושליפה
+// API Routes
 app.post('/api/donors', async (req, res) => {
-  const donor = new Donor(req.body);
-  await donor.save();
-  res.send(donor);
+  try {
+    const donor = new Donor(req.body);
+    await donor.save();
+    res.status(201).send(donor);
+  } catch (error) {
+    res.status(400).send(error);
+  }
 });
 
 app.get('/api/donors', async (req, res) => {
-  const donors = await Donor.find();
-  res.send(donors);
+  try {
+    const donors = await Donor.find();
+    res.send(donors);
+  } catch (error) {
+    res.status(500).send(error);
+  }
 });
 
+// נתיבים נוספים לפרסים ומסלולים
 app.post('/api/prizes', async (req, res) => {
-  const prize = new Prize(req.body);
-  await prize.save();
-  res.send(prize);
+  try {
+    const prize = new Prize(req.body);
+    await prize.save();
+    res.status(201).send(prize);
+  } catch (error) { res.status(400).send(error); }
 });
 
-app.get('/api/prizes', async (req, res) => {
-  const prizes = await Prize.find();
-  res.send(prizes);
+app.post('/api/packages', async (req, res) => {
+  try {
+    const pkg = new Package(req.body);
+    await pkg.save();
+    res.status(201).send(pkg);
+  } catch (error) { res.status(400).send(error); }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server is running on port ${PORT}`));
