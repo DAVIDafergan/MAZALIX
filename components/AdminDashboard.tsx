@@ -400,7 +400,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
         <div className="flex-1 w-full glass-card rounded-xl p-4 md:p-6 min-h-[400px] border border-white/5">
           
-          {/* תיקון: הוספת תוכן לטאב Super Admin כדי שהדף לא יהיה ריק */}
+          {/* הוספת תוכן לטאב Super Admin כדי שהדף לא יהיה ריק */}
           {auth.isSuperAdmin && activeTab === 'super' && (
             <div className="space-y-6">
               <div className="flex justify-between items-center border-b border-white/10 pb-4">
@@ -458,9 +458,6 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       </div>
                     </div>
                   ))}
-                  {(!clients || clients.length === 0) && (
-                    <p className="text-center py-10 text-gray-600 italic text-xs">{isHE ? 'אין לקוחות רשומים' : 'No clients registered'}</p>
-                  )}
                 </div>
               </div>
             </div>
