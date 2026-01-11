@@ -6,6 +6,7 @@ import Catalog from './components/Catalog';
 import AdminDashboard from './components/AdminDashboard';
 import DonorPortal from './components/DonorPortal';
 import LiveDraw from './components/LiveDraw';
+import Home from './components/Home'; // יבוא דף הבית החדש
 
 const App: React.FC = () => {
   const store = useStore();
@@ -33,7 +34,9 @@ const App: React.FC = () => {
 
         <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
-            <Route path="/" element={<Catalog store={store} />} />
+            {/* דף הבית: אם מחובר מציג קטלוג, אם לא מחובר מציג דף נחיתה */}
+            <Route path="/" element={store.auth.isLoggedIn && !store.auth.isSuperAdmin ? <Catalog store={store} /> : <Home store={store} />} />
+            
             {/* נתיב פומבי עם "מיספור" (clientId) - מאפשר לכל לקוח קטלוג ייחודי ונגיש לכל העולם */}
             <Route path="/catalog/:clientId" element={<Catalog store={store} />} />
             <Route path="/admin" element={<AdminDashboard store={store} />} />
@@ -51,5 +54,6 @@ const App: React.FC = () => {
     </Router>
   );
 };
+
 
 export default App;
