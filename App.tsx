@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import { Language } from './types';
@@ -6,10 +6,25 @@ import Catalog from './components/Catalog';
 import AdminDashboard from './components/AdminDashboard';
 import DonorPortal from './components/DonorPortal';
 import LiveDraw from './components/LiveDraw';
-import Home from './components/Home'; // יבוא דף הבית החדש
+import Home from './components/Home';
 
 const App: React.FC = () => {
   const store = useStore();
+  
+  // הגנה: אם ה-Store עדיין לא טעון, נציג מסך טעינה יוקרתי במקום דף לבן
+  if (!store || !store.auth) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="text-[#C2A353] text-4xl font-black italic tracking-tighter">Mazalix</div>
+          <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full luxury-gradient animate-shimmer" style={{ width: '50%' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const isRtl = store.lang === Language.HE;
 
   return (
@@ -20,7 +35,7 @@ const App: React.FC = () => {
             Mazalix
           </Link>
           <div className="flex items-center gap-6 text-sm font-semibold">
-            <Link to="/" className="hover:text-[#C2A353] transition-colors">{store.lang === Language.HE ? 'קטלוג' : 'Catalog'}</Link>
+            <Link to="/" className="hover:text-[#C2A353] transition-colors">{store.lang === Language.HE ? 'דף הבית' : 'Home'}</Link>
             <Link to="/portal" className="hover:text-[#C2A353] transition-colors">{store.lang === Language.HE ? 'איזור אישי' : 'Portal'}</Link>
             <Link to="/admin" className="hover:text-[#C2A353] transition-colors gold-text">{store.lang === Language.HE ? 'ניהול' : 'Admin'}</Link>
             <button 
@@ -32,13 +47,17 @@ const App: React.FC = () => {
           </div>
         </nav>
 
-        <main className="flex-grow container mx-auto px-4 py-8">
+        <main className="flex-grow container mx-auto px-1 md:px-4 py-8">
           <Routes>
-            {/* דף הבית: אם מחובר מציג קטלוג, אם לא מחובר מציג דף נחיתה */}
-            <Route path="/" element={store.auth.isLoggedIn && !store.auth.isSuperAdmin ? <Catalog store={store} /> : <Home store={store} />} />
+            {/* פתרון הדף הלבן: שימוש בסימן שאלה (?) לבדיקה בטוחה של ה-auth */}
+            <Route 
+              path="/" 
+              element={store?.auth?.isLoggedIn && !store?.auth?.isSuperAdmin ? <Catalog store={store} /> : <Home store={store} />} 
+            />
             
-            {/* נתיב פומבי עם "מיספור" (clientId) - מאפשר לכל לקוח קטלוג ייחודי ונגיש לכל העולם */}
+            {/* נתיב פומבי עם "מיספור" (clientId) */}
             <Route path="/catalog/:clientId" element={<Catalog store={store} />} />
+            
             <Route path="/admin" element={<AdminDashboard store={store} />} />
             <Route path="/portal" element={<DonorPortal store={store} />} />
             <Route path="/draw/:prizeId" element={<LiveDraw store={store} />} />
@@ -48,12 +67,11 @@ const App: React.FC = () => {
 
         <footer className="mt-20 py-8 border-t border-white/5 text-center text-xs text-gray-500">
           <p>{isRtl ? 'כל הזכויות שמורות ל-DA פרויקטים ויזמות' : 'All Rights Reserved to DA Projects & Entrepreneurship'}</p>
-          <p className="mt-1 opacity-50">© 2025 Mazalix System</p>
+          <p className="mt-1 opacity-50">© 2026 Mazalix System</p>
         </footer>
       </div>
     </Router>
   );
 };
-
 
 export default App;
