@@ -34,7 +34,10 @@ export function useStore() {
         fetch(`${API_URL}/api/donors`)
       ]);
       
-      if (cRes.ok) setClients(await cRes.json());
+      if (cRes.ok) {
+        const dbClients = await cRes.json();
+        setClients(dbClients);
+      }
       
       if (pRes.ok) {
         const allPrizes = await pRes.json();
@@ -149,8 +152,8 @@ export function useStore() {
         return true;
     }
     
-    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד
-    const client = clients.find(c => c.username === username && c.password === pass);
+    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד (תומך גם ב-username וגם ב-displayName)
+    const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
       const newAuth = { isLoggedIn: true, isSuperAdmin: false, clientId: client.id };
       setAuth(newAuth);
