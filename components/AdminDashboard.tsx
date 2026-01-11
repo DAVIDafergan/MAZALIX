@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
-import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip } from 'lucide-react';
+import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import * as XLSX from 'xlsx'; // ייבוא הספרייה לקריאת אקסל
@@ -19,7 +19,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [selectedManualPkg, setSelectedManualPkg] = useState<Record<string, string>>({});
 
-  const [newClient, setNewClient] = useState({ name: '', user: '', pass: '' });
+  // עדכון סטייט לקוח לכלול את כל השדות שביקשת
+  const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', user: '', pass: '' });
   const [newPrize, setNewPrize] = useState<Partial<Prize>>({
     titleHE: '', titleEN: '', descriptionHE: '', descriptionEN: '', value: 0, media: [], status: DrawStatus.OPEN, order: prizes.length, isFeatured: false, isFullPage: false
   });
@@ -163,11 +164,23 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     login('demo', 'demo');
   };
 
+  // פונקציית הוספת לקוח משופרת
   const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name || !newClient.user || !newClient.pass) return;
-    addClient(newClient.name, newClient.user, newClient.pass);
-    setNewClient({ name: '', user: '', pass: '' });
+    
+    // שליחת כל הנתונים לסטור
+    addClient(newClient.name, newClient.user, newClient.pass, newClient.phone, newClient.email);
+    
+    setNewClient({ name: '', phone: '', email: '', user: '', pass: '' });
+    alert(isHE ? 'הלקוח נוסף בהצלחה למערכת!' : 'Client added successfully!');
+  };
+
+  // העתקת לינק לקטלוג הלקוח
+  const copyClientPublicLink = (clientId: string) => {
+    const url = `${window.location.origin}/#/catalog/${clientId}`;
+    navigator.clipboard.writeText(url);
+    alert(isHE ? 'לינק הפרסום של הלקוח הועתק!' : 'Client catalog link copied!');
   };
 
   const downloadExcelTemplate = () => {
@@ -294,7 +307,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       <div className="flex justify-between items-center glass-card p-3 px-6 rounded-2xl border-l-4 border-[#C2A353]">
         <div className="flex items-center gap-3">
           <Shield size={18} className="gold-text" />
-          <h2 className="font-black text-sm italic">{auth.isSuperAdmin ? (isHE ? 'מנהל על - Mazalix' : 'Mazalix Super Admin') : (isHE ? 'לוח ניהול לקוח' : 'Client Admin Dashboard')}</h2>
+          <h2 className="font-black text-sm italic">{auth.isSuperAdmin ? (isHE ? 'מנהל על - Mazalix' : 'Mazalix Super Admin') : (isHE ? `ניהול: ${auth.user}` : `Admin: ${auth.user}`)}</h2>
         </div>
         <div className="flex items-center gap-4">
           {unmappedDonors.length > 0 && (
@@ -354,6 +367,70 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
         </aside>
 
         <div className="flex-1 w-full glass-card rounded-xl p-4 md:p-6 min-h-[400px] border border-white/5">
+          
+          {/* ניהול לקוחות למנהל על */}
+          {auth.isSuperAdmin && activeTab === 'super' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                <h2 className="text-base font-black italic flex items-center gap-2">
+                  <UserPlus className="gold-text" size={18} /> {isHE ? 'הוספת לקוח חדש' : 'Add New Client'}
+                </h2>
+              </div>
+              
+              <form onSubmit={handleAddClient} className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white/5 p-4 rounded-xl">
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם הלקוח / מוסד' : 'Client Name'}</label>
+                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.name} onChange={e => setNewClient({...newClient, name: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'טלפון' : 'Phone'}</label>
+                  <input className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.phone} onChange={e => setNewClient({...newClient, phone: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'אימייל' : 'Email'}</label>
+                  <input type="email" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.email} onChange={e => setNewClient({...newClient, email: e.target.value})} />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם משתמש לכניסה' : 'Username'}</label>
+                  <input required className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.user} onChange={e => setNewClient({...newClient, user: e.target.value})} />
+                </div>
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סיסמת גישה' : 'Password'}</label>
+                  <input required type="text" className="w-full bg-white/10 p-2.5 rounded-lg text-xs font-bold outline-none" value={newClient.pass} onChange={e => setNewClient({...newClient, pass: e.target.value})} />
+                </div>
+                <button type="submit" className="md:col-span-2 luxury-gradient p-3 rounded-xl text-black font-black text-xs uppercase shadow-lg">
+                  {isHE ? 'צור חשבון לקוח' : 'Create Client Account'}
+                </button>
+              </form>
+
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{isHE ? 'רשימת לקוחות פעילים' : 'Active Clients List'}</h3>
+                <div className="grid grid-cols-1 gap-2">
+                  {clients.map((client: any) => (
+                    <div key={client.id} className="p-3 glass-card rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-black gold-text">{client.name.charAt(0)}</div>
+                        <div>
+                          <p className="text-xs font-bold">{client.name}</p>
+                          <div className="flex gap-2 text-[8px] text-gray-500 italic">
+                            <span><Phone size={8} className="inline mr-0.5" />{client.phone}</span>
+                            <span><Mail size={8} className="inline mr-0.5" />{client.email}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <button onClick={() => copyClientPublicLink(client.id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
+                          <LinkIcon size={12} className="gold-text" /> {isHE ? 'לינק פרסום' : 'Public Link'}
+                        </button>
+                        <button className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={12}/></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {!auth.isSuperAdmin && activeTab === 'summary' && (
              <div className="space-y-6">
                 <h2 className="text-base font-black italic flex items-center gap-2"><BarChart3 size={18} className="gold-text"/> {isHE ? 'סיכום כרטיסים והפצה' : 'Gift Ticket Summary'}</h2>
@@ -647,7 +724,6 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button>
               </div>
               
-              {/* כפתור העלאה אמיתי לאקסל */}
               <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5">
                 <input 
                   type="file" 
@@ -689,8 +765,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               </div>
             </div>
           )}
-          
-          {/* ... שאר הטאבים (campaign, live) נשארים ללא שינוי ... */}
+
           {!auth.isSuperAdmin && activeTab === 'campaign' && (
              <div className="space-y-4">
                 <h2 className="text-base font-black italic">{isHE ? 'הגדרות קמפיין' : 'Campaign Settings'}</h2>
