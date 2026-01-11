@@ -37,12 +37,18 @@ export function useStore() {
       if (cRes.ok) {
         const dbClients = await cRes.json();
         setClients(dbClients);
+        
+        // אם מחובר מנהל - נטען את הגדרות הקמפיין שלו מהמסד
+        if (auth.clientId && !auth.isSuperAdmin) {
+          const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
+          if (currentClient?.campaign) setCampaign(currentClient.campaign);
+        }
       }
       
       if (pRes.ok) {
         const allPrizes = await pRes.json();
-        // אם מחובר לקוח, נציג רק את שלו. אם לא (דף הבית), נטען את הכל.
-        if (auth.clientId && !auth.isSuperAdmin) {
+        // למנהל מחובר: הצג רק את שלו. לאורח: הצג הכל (הקומפוננטה תפלטר לפי ה-URL)
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setPrizes(allPrizes.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPrizes(allPrizes);
@@ -50,7 +56,7 @@ export function useStore() {
       }
       if (pkgRes.ok) {
         const allPkgs = await pkgRes.json();
-        if (auth.clientId && !auth.isSuperAdmin) {
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setPackages(allPkgs.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPackages(allPkgs);
@@ -58,7 +64,7 @@ export function useStore() {
       }
       if (dRes.ok) {
         const allDonors = await dRes.json();
-        if (auth.clientId && !auth.isSuperAdmin) {
+        if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
             setDonors(allDonors.filter((d: any) => d.clientId === auth.clientId));
         } else {
             setDonors(allDonors);
@@ -100,7 +106,7 @@ export function useStore() {
   // טעינה ראשונית של הכל
   useEffect(() => {
     fetchAllData();
-  }, [auth.clientId, auth.isSuperAdmin]);
+  }, [auth.clientId, auth.isSuperAdmin, auth.isLoggedIn]);
 
   // הפעלת סינכרון כשמנהל מתחבר ויש לו נתונים מקומיים
   useEffect(() => {
@@ -152,7 +158,7 @@ export function useStore() {
         return true;
     }
     
-    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד (תומך גם ב-username וגם ב-displayName)
+    // תיקון: בדיקה מול רשימת הלקוחות המעודכנת מהמסד
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
       const newAuth = { isLoggedIn: true, isSuperAdmin: false, clientId: client.id };
@@ -196,28 +202,58 @@ export function useStore() {
     setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
-  const updateCampaign = (updates: Partial<CampaignSettings>) => setCampaign(prev => ({ ...prev, ...updates }));
+  const updateCampaign = async (updates: Partial<CampaignSettings>) => {
+    const newCampaign = { ...campaign, ...updates };
+    setCampaign(newCampaign);
+    
+    // עדכון במסד הנתונים תחת הלקוח המחובר
+    if (auth.clientId && !auth.isSuperAdmin) {
+      try {
+        await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaign: newCampaign })
+        });
+      } catch (e) { console.error(e); }
+    }
+  };
 
   const addPrize = async (prize: Prize) => {
     const prizeWithClient = { ...prize, clientId: auth.clientId };
     
     // שמירה ב-DB
     try {
-      await fetch(`${API_URL}/api/prizes`, {
+      const res = await fetch(`${API_URL}/api/prizes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(prizeWithClient)
       });
-    } catch (e) { console.error(e); }
-
-    setPrizes(prev => [...prev, prize].sort((a, b) => a.order - b.order));
+      const savedPrize = await res.json();
+      setPrizes(prev => [...prev, savedPrize].sort((a, b) => a.order - b.order));
+    } catch (e) { 
+      console.error(e); 
+      setPrizes(prev => [...prev, prize].sort((a, b) => a.order - b.order));
+    }
   };
 
-  const deletePrize = (id: string) => {
+  const deletePrize = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/api/prizes/${id}`, { method: 'DELETE' });
+    } catch (e) { console.error(e); }
+    
     setPrizes(prev => prev.filter(p => p.id !== id));
     setTickets(prev => prev.filter(t => t.prizeId !== id));
   };
-  const updatePrize = (id: string, updates: Partial<Prize>) => {
+
+  const updatePrize = async (id: string, updates: Partial<Prize>) => {
+    try {
+      await fetch(`${API_URL}/api/prizes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error(e); }
+    
     setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
   };
 
@@ -226,18 +262,34 @@ export function useStore() {
     
     // שמירה ב-DB
     try {
-      await fetch(`${API_URL}/api/packages`, {
+      const res = await fetch(`${API_URL}/api/packages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pkgWithClient)
       });
-    } catch (e) { console.error(e); }
-
-    setPackages(prev => [...prev, pkg]);
+      const savedPkg = await res.json();
+      setPackages(prev => [...prev, savedPkg]);
+    } catch (e) { 
+      console.error(e); 
+      setPackages(prev => [...prev, pkg]);
+    }
   };
 
-  const deletePackage = (id: string) => setPackages(prev => prev.filter(p => p.id !== id));
-  const updatePackage = (id: string, updates: Partial<Package>) => {
+  const deletePackage = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' });
+    } catch (e) { console.error(e); }
+    setPackages(prev => prev.filter(p => p.id !== id));
+  };
+
+  const updatePackage = async (id: string, updates: Partial<Package>) => {
+    try {
+      await fetch(`${API_URL}/api/packages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+    } catch (e) { console.error(e); }
     setPackages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
 
@@ -250,18 +302,25 @@ export function useStore() {
 
     // שמירה ב-DB
     try {
-      await fetch(`${API_URL}/api/donors`, {
+      const res = await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(donorWithPkg)
       });
-    } catch (e) { console.error(e); }
-
-    setDonors(prev => {
-      const exists = prev.find(d => d.phone === donor.phone);
-      if (exists) return prev;
-      return [...prev, donorWithPkg as Donor];
-    });
+      const savedDonor = await res.json();
+      setDonors(prev => {
+        const exists = prev.find(d => d.phone === savedDonor.phone);
+        if (exists) return prev;
+        return [...prev, savedDonor];
+      });
+    } catch (e) { 
+      console.error(e); 
+      setDonors(prev => {
+        const exists = prev.find(d => d.phone === donor.phone);
+        if (exists) return prev;
+        return [...prev, donorWithPkg as Donor];
+      });
+    }
     
     if (matched) {
       const newTickets: Ticket[] = [];
