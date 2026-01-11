@@ -17,7 +17,7 @@ mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB Successfully'))
   .catch(err => console.error('❌ Connection error:', err));
 
-// סכמות גמישות
+// סכמות גמישות כדי שלא יחסר מידע
 const Client = mongoose.model('Client', new mongoose.Schema({}, { strict: false }));
 const Donor = mongoose.model('Donor', new mongoose.Schema({}, { strict: false }));
 const Prize = mongoose.model('Prize', new mongoose.Schema({}, { strict: false }));
@@ -32,23 +32,30 @@ const getModel = (name) => {
 };
 
 // --- נתיב קריטי: עדכון הגדרות קמפיין ---
+// תיקון: הוספנו $set ושימוש ב-findOneAndUpdate עם הגדרה ברורה
 app.put('/api/clients/:id/campaign', async (req, res) => {
   try {
     const { id } = req.params;
     const { campaign } = req.body;
     
-    // מוצא את הלקוח לפי ה-id שלו ומעדכן רק את אובייקט ה-campaign
+    console.log(`📡 Attempting to update campaign for client ID: ${id}`);
+    
+    // מוצא את הלקוח לפי ה-id הפנימי (לא ה-ObjectID של מונגו אלא ה-id שייצרנו)
     const updatedClient = await Client.findOneAndUpdate(
       { id: id }, 
       { $set: { campaign: campaign } },
-      { new: true }
+      { new: true, upsert: true } // upsert מוודא שאם השדה לא קיים הוא ייווצר
     );
     
-    if (!updatedClient) return res.status(404).send({ message: "Client not found" });
-    console.log(`✅ Campaign updated for client ${id}`);
+    if (!updatedClient) {
+        console.error("❌ Client not found in DB during campaign update");
+        return res.status(404).send({ message: "Client not found" });
+    }
+
+    console.log(`✅ Campaign successfully saved to DB for: ${updatedClient.displayName}`);
     res.send(updatedClient);
   } catch (e) {
-    console.error("❌ Error updating campaign:", e);
+    console.error("❌ Error during campaign update:", e);
     res.status(500).send(e);
   }
 });
@@ -56,10 +63,12 @@ app.put('/api/clients/:id/campaign', async (req, res) => {
 app.post('/api/:collection', async (req, res) => {
   const { collection } = req.params;
   try {
+    console.log(`📩 Received data for ${collection}:`, req.body);
     let model = getModel(collection);
     const doc = await model.create(req.body);
     res.status(201).send(doc);
   } catch (e) {
+    console.error(`❌ Error saving to ${collection}:`, e);
     res.status(400).send(e);
   }
 });
