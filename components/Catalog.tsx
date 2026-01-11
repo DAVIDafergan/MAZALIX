@@ -54,19 +54,19 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(interval);
   }, [featuredPrizes.length]);
 
-  // --- תיקון סופי ומוחלט למנגנון השיתוף ---
+  // --- תיקון סופי ומוחלט למנגנון השיתוף שיעבוד ב-Railway ---
   const handleShareCatalog = async (idFromCard?: string) => {
     // מזהה הלקוח: אם לחצו על כרטיס בדף הבית נשתמש ב-ID שלו, אחרת בלקוח האקטיבי
     const idToShare = idFromCard || activeClientId;
     
-    // אם אין ID (למשל בדף בית ריק), נשתמש בלינק הראשי, אחרת נבנה לינק קטלוג
+    // בניית הלינק המדויק ל-Railway עם ה-HashRouter
     const shareUrl = idToShare 
-      ? `${window.location.origin}/#/catalog/${idToShare}`
-      : window.location.origin;
+      ? `https://mazalix-production.up.railway.app/#/catalog/${idToShare}`
+      : `https://mazalix-production.up.railway.app/`;
     
     const shareData = {
       title: isHE ? currentCampaign.nameHE || 'Mazalix' : currentCampaign.nameEN || 'Mazalix',
-      text: isHE ? `בואו להשתתף במכירה הפומבית היוקרתית!` : `Join the luxury auction!`,
+      text: isHE ? `בואו להשתתף במכירה הפומבית היוקרתית של ${currentCampaign.nameHE || currentClient?.name || 'Mazalix'}!` : `Join the luxury auction of ${currentCampaign.nameEN || currentClient?.name || 'Mazalix'}!`,
       url: shareUrl, 
     };
 
@@ -75,13 +75,11 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        alert(isHE ? 'הקישור הועתק בהצלחה!' : 'Link copied successfully!');
+        alert(isHE ? 'הקישור לקטלוג הועתק בהצלחה!' : 'Catalog link copied successfully!');
       }
     } catch (err: any) {
-      // התעלמות משגיאות שנובעות מביטול המשתמש
       if (err.name !== 'AbortError') {
         console.error('Share failed:', err);
-        // Fallback למקרה שהשיתוף נכשל מסיבה טכנית
         navigator.clipboard.writeText(shareUrl);
         alert(isHE ? 'הקישור הועתק ללוח' : 'Link copied to clipboard');
       }
@@ -325,7 +323,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
           {regularPrizes.length > 0 && (
             <section className="space-y-6 md:space-y-8 px-1 md:px-0">
               <div className="flex justify-between items-end border-b border-white/5 pb-4 md:pb-6 gap-2 px-4">
-                <div className="space-y-0.5"><h2 className="text-base md:text-xl font-black italic tracking-tighter">{isHE ? 'קטלוג המתנות' : 'The Collection'}</h2><p className="text-gray-500 font-bold uppercase tracking-[0.2em] text-[7px] md:text-[8px]">{isHE ? 'כל המתנות שמחכות לכם בקמפיין' : 'Explore every premium opportunity'}</p></div>
+                <div className="space-y-0.5"><h2 className="text-base md:text-xl font-black italic tracking-tighter">{isHE ? 'קטלוג הפרסים' : 'The Collection'}</h2><p className="text-gray-500 font-bold uppercase tracking-[0.2em] text-[7px] md:text-[8px]">{isHE ? 'כל המתנות שמחכות לכם בקמפיין' : 'Explore every premium opportunity'}</p></div>
                 <div className="px-3 py-1 rounded-lg border border-white/10 text-[7px] md:text-[8px] font-black uppercase text-gray-600 bg-white/5 whitespace-nowrap">{regularPrizes.length} {isHE ? 'פריטים' : 'Items'}</div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 px-4">
@@ -395,24 +393,14 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 const PrizeShareButton: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ activeClientId, prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
-    // יצירת לינק מפורש שכולל את ה-Origin וה-ID של הלקוח
-    const shareUrl = `${window.location.origin}/#/catalog/${activeClientId}`;
+    // יצירת לינק קשיח המתאים למבנה האתר ב-Railway
+    const shareUrl = `https://mazalix-production.up.railway.app/#/catalog/${activeClientId}`;
     
-    const shareData = { 
-      title: campaignName, 
-      text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, 
-      url: shareUrl 
-    };
+    const shareData = { title: campaignName, text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, url: shareUrl };
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        alert(isHE ? 'הקישור הועתק!' : 'Link copied!');
-      }
-    } catch (err: any) { 
-      if (err.name !== 'AbortError') console.error('Error sharing:', err); 
-    }
+      if (navigator.share) await navigator.share(shareData);
+      else { await navigator.clipboard.writeText(shareUrl); alert(isHE ? 'הקישור הועתק!' : 'Link copied!'); }
+    } catch (err: any) { if (err.name !== 'AbortError') console.error('Error sharing:', err); }
   };
 
   return (
