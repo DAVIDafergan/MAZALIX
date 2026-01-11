@@ -105,7 +105,7 @@ export function useStore() {
     fetchAllData();
   };
 
-  // טעינה ראשונית של הכל
+  // טעינה ראשונית של הכל מהמסד (קורה פעם אחת בריענון)
   useEffect(() => {
     fetchAllData();
   }, [auth.clientId, auth.isSuperAdmin, auth.isLoggedIn]);
@@ -117,26 +117,22 @@ export function useStore() {
     }
   }, [auth.isLoggedIn]);
 
-  // --- תיקון: ביטלנו את דריסת נתוני ה-Database על ידי localStorage ישן ---
+  // --- תיקון: מניעת דריסת נתוני Database על ידי localStorage ישן ---
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId) {
       if (auth.isSuperAdmin) {
         // Super admin context
       } else {
-        // כאן היה הקוד שדרס את הנתונים - הוא בוטל כדי שרק ה-DB יקבע
+        // הוסר הקוד שטען קמפיין מ-localStorage כדי שרק ה-Database יקבע
       }
     }
   }, [auth.isLoggedIn, auth.clientId, auth.isSuperAdmin]);
 
-  // Persist current context data (שומר גיבוי בזיכרון המקומי אבל לא דורס טעינה)
+  // Persist current context data (שומר רק Auth ורשימת לקוחות בזיכרון מקומי)
   useEffect(() => {
-    if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
-      const dataToSave = { campaign, prizes, packages, donors, tickets };
-      localStorage.setItem(`${LS_KEY}_data_${auth.clientId}`, JSON.stringify(dataToSave));
-    }
     localStorage.setItem(`${LS_KEY}_auth`, JSON.stringify(auth));
     localStorage.setItem(`${LS_KEY}_clients`, JSON.stringify(clients));
-  }, [auth, campaign, prizes, packages, donors, tickets, clients]);
+  }, [auth, clients]);
 
   const login = (username: string, pass: string) => {
     if (username === 'DA1234' && pass === 'DA1234') {
@@ -202,11 +198,12 @@ export function useStore() {
     if (auth.clientId && !auth.isSuperAdmin) {
       try {
         console.log("📡 שומר הגדרות קמפיין למסד הנתונים...");
-        await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
+        const res = await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ campaign: newCampaign })
         });
+        if (res.ok) console.log("✅ נשמר ב-DB");
       } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }
   };
