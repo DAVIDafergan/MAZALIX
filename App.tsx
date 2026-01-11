@@ -34,7 +34,7 @@ const App: React.FC = () => {
         <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Catalog store={store} />} />
-            {/* הוספת הנתיב הפומבי לקטלוג לפי לקוח - מאפשר גישה ללא התחברות */}
+            {/* נתיב פומבי עם "מיספור" (clientId) - מאפשר לכל לקוח קטלוג ייחודי ונגיש לכל העולם */}
             <Route path="/catalog/:clientId" element={<Catalog store={store} />} />
             <Route path="/admin" element={<AdminDashboard store={store} />} />
             <Route path="/portal" element={<DonorPortal store={store} />} />
