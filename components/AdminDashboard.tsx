@@ -3,6 +3,7 @@ import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageR
 import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
+import * as XLSX from 'xlsx'; // ייבוא הספרייה לקריאת אקסל
 
 interface AdminProps {
   store: any;
@@ -26,7 +27,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     nameHE: '', minAmount: 0, rules: [], image: '', joinLink: '', color: '#C2A353'
   });
 
-  // פונקציית עזר להמרת קובץ ל-Base64
+  // פונקציית עזר להמרת קובץ ל-Base64 (בשביל תמונות ווידאו)
   const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -52,6 +53,57 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     } catch (err) {
       console.error("File upload failed:", err);
     }
+  };
+
+  // פונקציה לייבוא אקסל אמיתי והתאמה למסלולים
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+      //jsonData מצפה לעמודות: Name, Phone, Email, Amount (או בעברית בהתאם לאקסל)
+      jsonData.forEach((row: any) => {
+        const donorName = row.Name || row['שם'] || 'תורם ללא שם';
+        const donationAmount = Number(row.Amount || row['סכום'] || 0);
+        const donorPhone = String(row.Phone || row['טלפון'] || '');
+        const donorEmail = String(row.Email || row['אימייל'] || '');
+
+        const donorId = Math.random().toString(36).substr(2, 9);
+        
+        // מציאת מסלול תואם בדיוק לפי הסכום
+        const matchedPackage = packages.find((p: Package) => p.minAmount === donationAmount);
+        
+        const newDonor: Donor = {
+          id: donorId,
+          name: donorName,
+          phone: donorPhone,
+          email: donorEmail,
+          totalDonated: donationAmount,
+          packageId: matchedPackage ? matchedPackage.id : undefined
+        };
+        
+        addDonor(newDonor);
+        
+        // שיוך אוטומטי למסלול ויצירת כרטיסים
+        if (matchedPackage) {
+            assignPackageToDonor(donorId, matchedPackage.id);
+        }
+      });
+
+      setIsImporting(false);
+      alert(isHE ? `ייבוא הושלם! עובדו ${jsonData.length} תורמים.` : `Import complete! Processed ${jsonData.length} donors.`);
+    };
+
+    reader.readAsArrayBuffer(file);
   };
 
   const generateAIDescription = async () => {
@@ -127,42 +179,6 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleSimulatedImport = () => {
-    setIsImporting(true);
-    setTimeout(() => {
-      const rawData = [
-        { name: 'משה כהן', phone: '0501112233', email: 'moshe@example.com', totalDonated: 1800 },
-        { name: 'Sarah Levy', phone: '0524445566', email: 'sarah@example.com', totalDonated: 3600 },
-        { name: 'אבי לוי', phone: '0547778899', email: 'avi@example.com', totalDonated: 7200 },
-      ];
-
-      rawData.forEach(item => {
-        const donorId = Math.random().toString(36).substr(2, 9);
-        // מציאת מסלול תואם בדיוק לפי הסכום
-        const matchedPackage = packages.find((p: Package) => p.minAmount === item.totalDonated);
-        
-        const newDonor: Donor = {
-          id: donorId,
-          name: item.name,
-          phone: item.phone,
-          email: item.email,
-          totalDonated: item.totalDonated,
-          packageId: matchedPackage ? matchedPackage.id : undefined
-        };
-        
-        addDonor(newDonor);
-        
-        // אם נמצא מסלול, המערכת משייכת אותו אוטומטית (זה ייצר כרטיסים לפי חוקי המסלול ב-store)
-        if (matchedPackage) {
-            assignPackageToDonor(donorId, matchedPackage.id);
-        }
-      });
-
-      setIsImporting(false);
-      alert(isHE ? 'ייבוא הנתונים והתאמת מסלולים הושלמה!' : 'Data import and route mapping completed!');
-    }, 1500);
   };
 
   const handleManualAssign = (donorId: string) => {
@@ -423,7 +439,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       </div>
                       <div className="flex-1 relative group">
                         <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'prize', 'image')} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
-                        <button className="w-full bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 group-hover:bg-white/10 transition-all"><Paperclip size={10}/> {isHE ? 'מהמחשב' : 'Upload'}</button>
+                        <button className="w-full bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 group-hover:bg-white/10 transition-all"><Paperclip size={10}/> {isHE ? 'תמונה' : 'Upload'}</button>
                       </div>
                       <div className="flex-1 relative group">
                         <input type="file" accept="video/*" onChange={(e) => handleFileUpload(e, 'prize', 'video')} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
@@ -630,10 +646,21 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <h2 className="text-base font-black italic">{isHE ? 'תורמים רשומים' : 'Registered Donors'}</h2>
                 <button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button>
               </div>
-              <div onClick={handleSimulatedImport} className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${isImporting ? 'border-[#C2A353] bg-[#C2A353]/5' : 'border-white/10 hover:border-white/20'}`}>
+              
+              {/* כפתור העלאה אמיתי לאקסל */}
+              <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5">
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls, .csv" 
+                  onChange={handleExcelImport} 
+                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
+                />
                 {isImporting ? <RefreshCcw size={20} className="mx-auto text-[#C2A353] animate-spin" /> : <Upload size={20} className="mx-auto text-gray-600" />}
-                <p className="text-[10px] mt-1 font-bold text-gray-400">{isHE ? 'ייבוא והתאמת מסלולים אוטומטית' : 'Import & Auto-Map Routes'}</p>
+                <p className="text-[10px] mt-1 font-bold text-gray-400">
+                  {isHE ? 'לחץ להעלאת קובץ אקסל (שיוך אוטומטי)' : 'Click to upload Excel (Auto-Map)'}
+                </p>
               </div>
+
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 text-xs">
                 {donors.length === 0 ? (
                   <p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>
@@ -662,7 +689,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               </div>
             </div>
           )}
-
+          
+          {/* ... שאר הטאבים (campaign, live) נשארים ללא שינוי ... */}
           {!auth.isSuperAdmin && activeTab === 'campaign' && (
              <div className="space-y-4">
                 <h2 className="text-base font-black italic">{isHE ? 'הגדרות קמפיין' : 'Campaign Settings'}</h2>
