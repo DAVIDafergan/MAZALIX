@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
-import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck } from 'lucide-react';
+import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck, Save, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import * as XLSX from 'xlsx'; // ייבוא הספרייה לקריאת אקסל
@@ -19,6 +19,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [selectedManualPkg, setSelectedManualPkg] = useState<Record<string, string>>({});
 
+  // סטייט חדש לניהול מצב השמירה של הקמפיין
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+
   // סטייט לטופס הוספת תורם ידני
   const [manualDonorForm, setManualDonorForm] = useState({ name: '', phone: '', email: '', amount: '', packageId: '' });
 
@@ -30,6 +34,22 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [pkgForm, setPkgForm] = useState<Partial<Package>>({
     nameHE: '', minAmount: 0, rules: [], image: '', joinLink: '', color: '#C2A353'
   });
+
+  // פונקציה לשמירת הגדרות הקמפיין למסד הנתונים
+  const handleSaveCampaignSettings = async () => {
+    setIsSavingCampaign(true);
+    try {
+      // שליחת אובייקט הקמפיין הנוכחי לעדכון בשרת
+      await updateCampaign(campaign);
+      setShowSaveSuccess(true);
+      setTimeout(() => setShowSaveSuccess(false), 3000);
+    } catch (err) {
+      console.error("Failed to save campaign:", err);
+      alert(isHE ? "שגיאה בשמירת הנתונים" : "Error saving data");
+    } finally {
+      setIsSavingCampaign(false);
+    }
+  };
 
   // פונקציית עזר להמרת קובץ ל-Base64 (בשביל תמונות ווידאו)
   const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -468,15 +488,15 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <h2 className="text-base font-black italic flex items-center gap-2"><BarChart3 size={18} className="gold-text"/> {isHE ? 'סיכום כרטיסים והפצה' : 'Gift Ticket Summary'}</h2>
                 <div className="overflow-x-auto">
                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
+                     <thead>
                         <tr className="border-b border-white/10 text-gray-500 font-black uppercase text-[8px] tracking-widest">
                            <th className="py-3 pr-4">{isHE ? 'מתנה' : 'Prize'}</th>
                            <th className="py-3 px-4">{isHE ? 'שווי' : 'Value'}</th>
                            <th className="py-3 px-4 text-center">{isHE ? 'כרטיסים' : 'Tickets'}</th>
                            <th className="py-3 pl-4 text-right">{isHE ? 'סיכוי יחסי' : 'Ratio'}</th>
                         </tr>
-                      </thead>
-                      <tbody>
+                     </thead>
+                     <tbody>
                         {prizes.map((p: Prize) => {
                           const count = tickets.filter((t: any) => t.prizeId === p.id).length;
                           const ratio = tickets.length > 0 ? ((count / tickets.length) * 100).toFixed(1) : '0';
@@ -505,7 +525,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                             </tr>
                           )
                         })}
-                      </tbody>
+                     </tbody>
                    </table>
                 </div>
                 {prizes.length === 0 && (
@@ -823,35 +843,49 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
           {!auth.isSuperAdmin && activeTab === 'campaign' && (
              <div className="space-y-4">
-                <h2 className="text-base font-black italic">{isHE ? 'הגדרות קמפיין' : 'Campaign Settings'}</h2>
+                <div className="flex justify-between items-center mb-2">
+                  <h2 className="text-base font-black italic">{isHE ? 'הגדרות קמפיין' : 'Campaign Settings'}</h2>
+                  {/* כפתור השמירה החדש */}
+                  <button 
+                    onClick={handleSaveCampaignSettings}
+                    disabled={isSavingCampaign}
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all shadow-lg ${
+                      showSaveSuccess ? 'bg-green-500 text-white' : 'luxury-gradient text-black hover:scale-105 active:scale-95'
+                    }`}
+                  >
+                    {isSavingCampaign ? <Loader2 size={14} className="animate-spin" /> : (showSaveSuccess ? <CheckCircle size={14} /> : <Save size={14} />)}
+                    {isSavingCampaign ? (isHE ? 'שומר...' : 'Saving...') : (showSaveSuccess ? (isHE ? 'נשמר בהצלחה!' : 'Saved!') : (isHE ? 'שמור הגדרות' : 'Save Settings'))}
+                  </button>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם' : 'Name'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none" value={campaign.nameHE} onChange={e => updateCampaign({nameHE: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={campaign.nameHE} onChange={e => updateCampaign({nameHE: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תאריך' : 'Draw Date'}</label>
-                    <input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none" value={campaign.drawDate} onChange={e => updateCampaign({drawDate: e.target.value})} />
+                    <input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={campaign.drawDate} onChange={e => updateCampaign({drawDate: e.target.value})} />
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לינק תרומות' : 'Donation URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px]" value={campaign.donationUrl} onChange={e => updateCampaign({donationUrl: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.donationUrl} onChange={e => updateCampaign({donationUrl: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לוגו URL' : 'Logo URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px]" value={campaign.logo} onChange={e => updateCampaign({logo: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.logo} onChange={e => updateCampaign({logo: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'באנר (תמונה) URL' : 'Banner (Image) URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px]" value={campaign.banner} onChange={e => updateCampaign({banner: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.banner} onChange={e => updateCampaign({banner: e.target.value})} />
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סרטון רקע URL' : 'Video Background URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px]" value={campaign.videoUrl || ''} onChange={e => updateCampaign({videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.videoUrl || ''} onChange={e => updateCampaign({videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" />
                   </div>
                 </div>
                 <div className="pt-4 border-t border-white/5">
-                   <button onClick={() => {if(confirm(isHE ? 'לאפס הכל?' : 'Reset everything?')) resetData()}} className="text-red-500 text-[10px] font-bold uppercase">{isHE ? 'איפוס כל נתוני הקמפיין' : 'Reset All Campaign Data'}</button>
+                   <button onClick={() => {if(confirm(isHE ? 'לאפס הכל?' : 'Reset everything?')) resetData()}} className="text-gray-700 hover:text-red-500 text-[10px] font-bold uppercase transition-colors">{isHE ? 'איפוס כל נתוני הקמפיין' : 'Reset All Campaign Data'}</button>
                 </div>
              </div>
           )}
