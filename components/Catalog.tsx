@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Language, Prize, DrawStatus, Package } from '../types';
-import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart, ExternalLink, ArrowRight } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 interface CatalogProps { store: any; }
@@ -13,18 +13,22 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   const [selectedPkg, setSelectedPkg] = useState<Package | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
 
-  // --- לוגיקה חדשה: זיהוי איזה קטלוג להציג ---
+  // --- לוגיקה לזיהוי איזה קטלוג להציג ---
   
-  // 1. אם יש clientId ב-URL, נשתמש בו.
-  // 2. אם המשתמש מחובר (ולא סופר אדמין), נשתמש ב-clientId שלו.
-  // 3. אחרת, נדע שאנחנו בדף הבית הציבורי.
+  // 1. אם יש clientId ב-URL (נכנסו דרך לינק שותף), נשתמש בו.
+  // 2. אם המשתמש מחובר (ולא סופר אדמין), נציג לו אוטומטית רק את הקטלוג שלו.
+  // 3. אם אף אחד מהנ"ל לא מתקיים - נציג את דף הבית הציבורי עם כל הכרטיסים.
   const activeClientId = clientId || (auth.isLoggedIn && !auth.isSuperAdmin ? auth.clientId : null);
   const isPublicHome = !activeClientId && !auth.isLoggedIn;
 
   // פילטור נתונים לפי הלקוח האקטיבי
-  const clientPrizes = activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : prizes;
-  const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : packages;
-  const currentCampaign = activeClientId ? (clients.find((c: any) => c.id === activeClientId)?.campaign || campaign) : campaign;
+  // אם אנחנו בדף הבית הציבורי, המערכים יהיו ריקים עד שייבחר קטלוג
+  const clientPrizes = activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : [];
+  const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : [];
+  
+  // מציאת הלקוח הנוכחי והקמפיין הספציפי שלו
+  const currentClient = activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
+  const currentCampaign = currentClient?.campaign || campaign;
 
   // Countdown logic
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
@@ -58,10 +62,11 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   }, [featuredPrizes.length]);
 
   const handleShareCatalog = async (customUrl?: string) => {
+    // יצירת לינק שיתוף הכולל את ה-ID של הקטלוג
     const shareData = {
-      title: isHE ? campaign.nameHE : campaign.nameEN,
-      text: isHE ? `בואו להשתתף במכירה הפומבית!` : `Join the luxury auction!`,
-      url: customUrl || window.location.href,
+      title: isHE ? currentCampaign.nameHE || 'Mazalix' : currentCampaign.nameEN || 'Mazalix',
+      text: isHE ? `בואו להשתתף במכירה הפומבית היוקרתית!` : `Join the luxury auction!`,
+      url: customUrl || window.location.href, // משתמש בלינק הנוכחי או בלינק ספציפי של כרטיס
     };
 
     try {
@@ -69,7 +74,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        alert(isHE ? 'הקישור הועתק ללוח!' : 'Link copied to clipboard!');
+        alert(isHE ? 'הקישור לקטלוג הועתק ללוח!' : 'Catalog link copied to clipboard!');
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') console.error('Error sharing catalog:', err);
@@ -81,50 +86,57 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 
   const isEmpty = clientPrizes.length === 0 && clientPackages.length === 0;
 
-  // --- תצוגת דף הבית הציבורי (קמפיינים פעילים) ---
+  // --- תצוגת דף הבית הציבורי (קמפיינים פעילים של כל הלקוחות) ---
   if (isPublicHome) {
     return (
-      <div className="space-y-10 pb-20 animate-fade-in">
-        <header className="text-center space-y-4 py-10">
-          <h1 className="text-4xl md:text-6xl font-black italic luxury-gradient bg-clip-text text-transparent">
+      <div className="space-y-12 pb-20 animate-fade-in max-w-7xl mx-auto">
+        <header className="text-center space-y-4 py-16 px-4">
+          <h1 className="text-5xl md:text-8xl font-black italic luxury-gradient bg-clip-text text-transparent leading-tight tracking-tighter">
             {isHE ? 'קמפיינים פעילים' : 'Active Campaigns'}
           </h1>
-          <p className="text-gray-500 font-bold uppercase tracking-[0.3em] text-xs">
-            {isHE ? 'בחר קטלוג והצטרף להגרלה' : 'Select a catalog and join the raffle'}
+          <p className="text-gray-500 font-bold uppercase tracking-[0.4em] text-xs md:text-sm">
+            {isHE ? 'בחרו קטלוג יוקרה והצטרפו להגרלה' : 'Select a premium catalog and join the raffle'}
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 px-4">
           {clients.map((client: any) => (
-            <div key={client.id} className="group glass-card rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-[#C2A353]/30 transition-all duration-500 shadow-2xl flex flex-col">
-              <div className="relative h-48 overflow-hidden">
-                <img src={client.campaign?.banner || campaign.banner} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s] opacity-60" />
+            <div key={client.id} className="group glass-card rounded-[3rem] overflow-hidden border border-white/5 hover:border-[#C2A353]/30 transition-all duration-500 shadow-2xl flex flex-col relative">
+              <div className="relative h-56 overflow-hidden bg-black/40">
+                {client.campaign?.banner ? (
+                  <img src={client.campaign.banner} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[4s] opacity-60" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center opacity-10">
+                    <Sparkles size={60} className="gold-text" />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#020617] to-transparent"></div>
-                <div className="absolute top-6 left-6 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10">
-                   <img src={client.campaign?.logo || campaign.logo} className="w-8 h-8 object-contain" />
+                <div className="absolute top-8 left-8 w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
+                   {client.campaign?.logo ? <img src={client.campaign.logo} className="w-full h-full object-contain" /> : <Gift size={24} className="gold-text" />}
                 </div>
               </div>
               
-              <div className="p-8 space-y-6 flex-1 flex flex-col justify-between">
+              <div className="p-10 space-y-8 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-2xl font-black italic gold-text mb-2">{client.name}</h3>
-                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">
-                    {isHE ? 'הגרלה בתאריך:' : 'Draw Date:'} {client.campaign?.drawDate || campaign.drawDate}
+                  <h3 className="text-3xl font-black italic gold-text mb-3 leading-none">{client.campaign?.nameHE || client.name}</h3>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Calendar size={12} className="gold-text" />
+                    {isHE ? 'תאריך הגרלה:' : 'Draw Date:'} {client.campaign?.drawDate || campaign.drawDate}
                   </p>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex gap-4">
                   <button 
                     onClick={() => navigate(`/catalog/${client.id}`)}
-                    className="flex-1 py-4 luxury-gradient text-black font-black rounded-2xl text-xs uppercase tracking-tighter flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+                    className="flex-1 py-5 luxury-gradient text-black font-black rounded-2xl text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.03] active:scale-95 transition-all shadow-xl"
                   >
-                    <Layout size={16} /> {isHE ? 'כניסה לקטלוג' : 'View Catalog'}
+                    <Layout size={18} /> {isHE ? 'כניסה לקטלוג' : 'View Catalog'}
                   </button>
                   <button 
                     onClick={() => handleShareCatalog(`${window.location.origin}/#/catalog/${client.id}`)}
-                    className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white hover:bg-white/10 transition-all"
+                    className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-white hover:bg-white/10 transition-all flex items-center justify-center shadow-lg"
                   >
-                    <Share2 size={18} />
+                    <Share2 size={20} />
                   </button>
                 </div>
               </div>
@@ -135,9 +147,16 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     );
   }
 
-  // --- תצוגת קטלוג ספציפי (הקוד המקורי שלך) ---
+  // --- תצוגת קטלוג ספציפי של לקוח נבחר ---
   return (
     <div className="space-y-6 md:space-y-12 pb-10">
+      {/* כפתור חזרה לדף הבית רק אם הגיע מבחוץ */}
+      {!auth.isLoggedIn && (
+         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest px-4">
+            <ArrowRight size={14} className={isHE ? '' : 'rotate-180'} /> {isHE ? 'חזרה לכל הקמפיינים' : 'Back to all campaigns'}
+         </button>
+      )}
+
       {/* כפתור רכישת כרטיסים בראש האתר */}
       <div className="flex justify-center pt-2 md:pt-4">
          <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-2 md:px-12 md:py-3 luxury-gradient text-black font-black rounded-full shadow-[0_10px_30px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-xs md:text-sm uppercase tracking-tighter italic z-50">
@@ -170,7 +189,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
           
           <div className="space-y-2">
             <h1 className="text-2xl md:text-6xl font-black tracking-tighter luxury-gradient bg-clip-text text-transparent italic leading-tight">
-              {isHE ? currentCampaign.nameHE || campaign.nameHE : currentCampaign.nameEN || campaign.nameEN}
+              {isHE ? currentCampaign.nameHE || currentClient?.name : currentCampaign.nameEN || currentClient?.name}
             </h1>
             
             {/* מונה הגרלה מסודר מימין לשמאל: ימים -> שעות -> דקות -> שניות */}
@@ -252,7 +271,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                        </div>
                     </div>
                     <div className="flex gap-5">
-                        <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
+                        <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? currentClient?.name : currentClient?.name} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
                         {(currentCampaign.donationUrl || campaign.donationUrl) && (
                          <div className="flex flex-col gap-2">
                            <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_60px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
@@ -362,7 +381,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                         <img src={p.media[0]?.url} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[3s]" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/20 to-transparent"></div>
                         
-                        {/* שינוי תווית ל-"מומלץ" */}
                         <div className="absolute top-10 left-10 md:top-16 md:left-16 flex gap-4">
                             <div className="px-6 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10 flex items-center gap-3 shadow-2xl">
                               <Layers size={24} className="gold-text" />
@@ -388,7 +406,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                             </div>
                             <div className="flex flex-col gap-4">
                               <div className="flex gap-4">
-                                <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
+                                <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? currentClient?.name : currentClient?.name} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
                                 {(currentCampaign.donationUrl || campaign.donationUrl) && (
                                   <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
                                     {isHE ? 'להצטרפות להגרלה' : 'Claim Tokens'}
@@ -405,7 +423,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                   }
 
                   return (
-                    <PrizeCard key={p.id} prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} donationUrl={currentCampaign.donationUrl || campaign.donationUrl} ticketCount={ticketCount} />
+                    <PrizeCard key={p.id} prize={p} isHE={isHE} campaignName={isHE ? currentClient?.name : currentClient?.name} donationUrl={currentCampaign.donationUrl || campaign.donationUrl} ticketCount={ticketCount} />
                   );
                 })}
               </div>
@@ -461,25 +479,24 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   );
 };
 
+// ... שאר הקומפוננטות (PrizeShareButton ו-PrizeCard) נשארות ללא שינוי, רק עודכנו ב-IDs
 const PrizeShareButton: React.FC<{ prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
     const shareData = {
-      title: isHE ? campaignName : campaignName,
-      text: isHE ? `בואו לראות את הקטלוג המלא ב-${campaignName}!` : `Check out the full catalog for ${campaignName}!`,
-      url: window.location.href,
+      title: campaignName,
+      text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Check out this amazing prize at ${campaignName}!`,
+      url: window.location.href, // משתף את הלינק המדויק של הקטלוג
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        alert(isHE ? 'הקישור לקטלוג הועתק!' : 'Catalog link copied!');
+        alert(isHE ? 'הקישור הועתק!' : 'Link copied!');
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Error sharing prize:', err);
-      }
+      if (err.name !== 'AbortError') console.error('Error sharing prize:', err);
     }
   };
 
