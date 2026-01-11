@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
-import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus } from 'lucide-react';
+import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import * as XLSX from 'xlsx'; // ייבוא הספרייה לקריאת אקסל
@@ -18,6 +18,9 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [selectedManualPkg, setSelectedManualPkg] = useState<Record<string, string>>({});
+
+  // סטייט לטופס הוספת תורם ידני
+  const [manualDonorForm, setManualDonorForm] = useState({ name: '', phone: '', email: '', amount: '', packageId: '' });
 
   // עדכון סטייט לקוח לכלול את כל השדות שביקשת - הוספתי טלפון ומייל
   const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', user: '', pass: '' });
@@ -176,6 +179,33 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     
     setNewClient({ name: '', phone: '', email: '', user: '', pass: '' });
     alert(isHE ? 'הלקוח נוסף בהצלחה!' : 'Client added successfully!');
+  };
+
+  // פונקציית הוספת תורם ידנית
+  const handleManualDonorAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualDonorForm.name || !manualDonorForm.amount) {
+        alert(isHE ? 'נא למלא שם וסכום' : 'Please fill name and amount');
+        return;
+    }
+
+    const donorId = Math.random().toString(36).substr(2, 9);
+    const newDonor: Donor = {
+        id: donorId,
+        name: manualDonorForm.name,
+        phone: manualDonorForm.phone,
+        email: manualDonorForm.email,
+        totalDonated: Number(manualDonorForm.amount),
+        packageId: manualDonorForm.packageId || undefined
+    };
+
+    addDonor(newDonor);
+    if (manualDonorForm.packageId) {
+        assignPackageToDonor(donorId, manualDonorForm.packageId);
+    }
+
+    setManualDonorForm({ name: '', phone: '', email: '', amount: '', packageId: '' });
+    alert(isHE ? 'התורם נוסף בהצלחה!' : 'Donor added successfully!');
   };
 
   // פונקציה להעתקת לינק הקטלוג הציבורי של הלקוח
@@ -723,13 +753,35 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
           )}
 
           {!auth.isSuperAdmin && activeTab === 'donors' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-base font-black italic">{isHE ? 'תורמים רשומים' : 'Registered Donors'}</h2>
                 <button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button>
               </div>
+
+              {/* הוספת תורם ידני - חדש! */}
+              <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                <h3 className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2"><Plus size={12}/> {isHE ? 'הוספת תורם ידני' : 'Add Manual Donor'}</h3>
+                <form onSubmit={handleManualDonorAdd} className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input placeholder={isHE ? 'שם התורם' : 'Donor Name'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.name} onChange={e => setManualDonorForm({...manualDonorForm, name: e.target.value})} />
+                  <input placeholder={isHE ? 'טלפון' : 'Phone'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.phone} onChange={e => setManualDonorForm({...manualDonorForm, phone: e.target.value})} />
+                  <input type="number" placeholder={isHE ? 'סכום תרומה ₪' : 'Donation Amount ₪'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.amount} onChange={e => setManualDonorForm({...manualDonorForm, amount: e.target.value})} />
+                  <select 
+                      className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]"
+                      value={manualDonorForm.packageId}
+                      onChange={e => setManualDonorForm({...manualDonorForm, packageId: e.target.value})}
+                  >
+                      <option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>
+                      {packages.map((pkg: any) => (
+                          <option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
+                      ))}
+                  </select>
+                  <button type="submit" className="md:col-span-2 luxury-gradient p-2.5 rounded-xl text-black font-black text-[10px] uppercase shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
+                      <UserCheck size={14}/> {isHE ? 'הוסף תורם' : 'Add Donor'}
+                  </button>
+                </form>
+              </div>
               
-              {/* כפתור העלאה אמיתי לאקסל */}
               <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5">
                 <input 
                   type="file" 
