@@ -4,7 +4,7 @@ import { INITIAL_PRIZES, INITIAL_PACKAGES, INITIAL_CAMPAIGN } from '../constants
 
 // Key for local storage
 const LS_KEY = 'mazalix_v1';
-const API_URL = ""; // השאר ריק אם השרת מגיש את הפרונטנד באותו דומיין
+const API_URL = ""; // השרת מגיש את האפליקציה באותה כתובת
 
 export function useStore() {
   const [lang, setLang] = useState<Language>(Language.HE);
@@ -24,8 +24,8 @@ export function useStore() {
   const [donors, setDonors] = useState<Donor[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
-  // --- פונקציה חדשה: טעינת נתונים מהמסד (MongoDB) ---
-  const fetchFromDb = async () => {
+  // --- פונקציה לטעינת נתונים מה-MongoDB ---
+  const fetchAllData = async () => {
     try {
       const [cRes, pRes, pkgRes, dRes] = await Promise.all([
         fetch(`${API_URL}/api/clients`),
@@ -37,22 +37,58 @@ export function useStore() {
       if (cRes.ok) setClients(await cRes.json());
       if (pRes.ok) {
         const allPrizes = await pRes.json();
+        // אם מחובר לקוח, נציג רק את שלו. אם לא, נטען את הכל לדף הבית הכללי.
         if (auth.clientId && !auth.isSuperAdmin) {
             setPrizes(allPrizes.filter((p: any) => p.clientId === auth.clientId));
         } else {
             setPrizes(allPrizes);
         }
       }
-      // ניתן להמשיך לטעון את שאר הנתונים באותה צורה
+      if (pkgRes.ok) setPackages(await pkgRes.json());
+      if (dRes.ok) setDonors(await dRes.json());
     } catch (e) {
-      console.error("Failed to fetch from DB", e);
+      console.error("טעינה מהמסד נכשלה", e);
     }
   };
 
-  // טעינה ראשונית של לקוחות (כדי שיופיעו בדף הבית)
+  // --- מנגנון סינכרון אוטומטי (Migration) ---
+  // הפונקציה הזו לוקחת את מה שיש לך ב-LocalStorage ושולחת למסד הנתונים
+  const syncLocalDataToDb = async () => {
+    if (!auth.isLoggedIn) return;
+
+    // סינכרון לקוחות
+    for (const client of clients) {
+       await fetch(`${API_URL}/api/clients`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify(client)
+       });
+    }
+
+    // סינכרון פרסים
+    for (const prize of prizes) {
+      await fetch(`${API_URL}/api/prizes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...prize, clientId: auth.clientId })
+      });
+    }
+
+    console.log("✅ כל המידע המקומי סונכרן למסד הנתונים ב-Railway");
+    fetchAllData(); // טעינה מחדש מהמסד אחרי הסינכרון
+  };
+
+  // טעינת נתונים ראשונית
   useEffect(() => {
-    fetchFromDb();
+    fetchAllData();
   }, [auth.clientId]);
+
+  // הפעלת סינכרון חד פעמי כשנכנסים
+  useEffect(() => {
+    if (auth.isLoggedIn && clients.length > 0) {
+        syncLocalDataToDb();
+    }
+  }, [auth.isLoggedIn]);
 
   // Effect to handle state silo based on clientId
   useEffect(() => {
@@ -112,7 +148,6 @@ export function useStore() {
     resetData();
   };
 
-  // הוספת לקוח גם למסד הנתונים
   const addClient = async (displayName: string, user: string, pass: string, phone?: string, email?: string) => {
     const newClient: Client = {
       id: Math.random().toString(36).substr(2, 9),
@@ -142,7 +177,6 @@ export function useStore() {
 
   const updateCampaign = (updates: Partial<CampaignSettings>) => setCampaign(prev => ({ ...prev, ...updates }));
 
-  // הוספת פרס למסד הנתונים
   const addPrize = async (prize: Prize) => {
     const prizeWithClient = { ...prize, clientId: auth.clientId };
     try {
@@ -160,11 +194,11 @@ export function useStore() {
     setPrizes(prev => prev.filter(p => p.id !== id));
     setTickets(prev => prev.filter(t => t.prizeId !== id));
   };
+
   const updatePrize = (id: string, updates: Partial<Prize>) => {
     setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
   };
 
-  // הוספת מסלול למסד הנתונים
   const addPackage = async (pkg: Package) => {
     const pkgWithClient = { ...pkg, clientId: auth.clientId };
     try {
@@ -174,16 +208,15 @@ export function useStore() {
         body: JSON.stringify(pkgWithClient)
       });
     } catch (e) { console.error(e); }
-
     setPackages(prev => [...prev, pkg]);
   };
 
   const deletePackage = (id: string) => setPackages(prev => prev.filter(p => p.id !== id));
+
   const updatePackage = (id: string, updates: Partial<Package>) => {
     setPackages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
   };
 
-  // הוספת תורם למסד הנתונים
   const addDonor = async (donor: Donor) => {
     const matched = [...packages]
       .sort((a, b) => b.minAmount - a.minAmount)
@@ -237,31 +270,19 @@ export function useStore() {
   const assignPackageToDonor = (donorId: string, packageId: string) => {
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return;
-
     setDonors(prev => prev.map(d => d.id === donorId ? { ...d, packageId } : d));
     setTickets(prev => prev.filter(t => t.donorId !== donorId));
-
     const newTickets: Ticket[] = [];
     pkg.rules.forEach(rule => {
       if (rule.prizeId === 'ALL') {
         prizes.forEach(prize => {
           for (let i = 0; i < rule.count; i++) {
-            newTickets.push({
-              id: Math.random().toString(36).substr(2, 9),
-              donorId: donorId,
-              prizeId: prize.id,
-              createdAt: Date.now()
-            });
+            newTickets.push({ id: Math.random().toString(36).substr(2, 9), donorId, prizeId: prize.id, createdAt: Date.now() });
           }
         });
       } else {
         for (let i = 0; i < rule.count; i++) {
-          newTickets.push({
-            id: Math.random().toString(36).substr(2, 9),
-            donorId: donorId,
-            prizeId: rule.prizeId,
-            createdAt: Date.now()
-          });
+          newTickets.push({ id: Math.random().toString(36).substr(2, 9), donorId, prizeId: rule.prizeId, createdAt: Date.now() });
         }
       }
     });
