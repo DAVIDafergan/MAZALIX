@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Language, Prize, DrawStatus, Package } from '../types';
 import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart } from 'lucide-react';
+import { useParams } from 'react-router-dom';
 
 interface CatalogProps { store: any; }
 
 const Catalog: React.FC<CatalogProps> = ({ store }) => {
-  const { prizes, packages, lang, campaign, tickets } = store;
+  const { prizes, packages, lang, campaign, tickets, clients } = store;
+  const { clientId } = useParams<{ clientId: string }>(); // מאפשר זיהוי הלקוח מהלינק
   const isHE = lang === Language.HE;
   const [selectedPkg, setSelectedPkg] = useState<Package | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
@@ -42,10 +44,11 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   }, [featuredPrizes.length]);
 
   const handleShareCatalog = async () => {
+    // עדכון: שימוש ב-window.location.href כדי לתפוס את הלינק המלא כולל ה-ClientID
     const shareData = {
       title: isHE ? campaign.nameHE : campaign.nameEN,
       text: isHE ? `בואו להשתתף במכירה הפומבית של ${campaign.nameHE}!` : `Join the ${campaign.nameEN} luxury auction!`,
-      url: window.location.origin + window.location.pathname,
+      url: window.location.href, 
     };
 
     try {
@@ -53,7 +56,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        alert(isHE ? 'הקישור הועתק ללוח!' : 'Link copied to clipboard!');
+        alert(isHE ? 'הקישור לקטלוג הועתק ללוח!' : 'Catalog link copied to clipboard!');
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -293,7 +296,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                         <img src={p.media[0]?.url} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[3s]" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/20 to-transparent"></div>
                         
-                        {/* שינוי תווית ל-"מומלץ" */}
                         <div className="absolute top-10 left-10 md:top-16 md:left-16 flex gap-4">
                             <div className="px-6 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10 flex items-center gap-3 shadow-2xl">
                               <Layers size={24} className="gold-text" />
@@ -326,19 +328,15 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                                   </a>
                                 )}
                               </div>
-                              {/* כפתור רכישה עדין */}
-                              {campaign.donationUrl && (
-                                <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-xs font-black text-white/40 hover:text-white transition-colors underline italic uppercase tracking-widest">
-                                  {isHE ? 'רכישה' : 'Purchase'}
-                                </a>
-                              )}
+                              <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-xs font-black text-white/40 hover:text-white transition-colors underline italic uppercase tracking-widest">
+                                {isHE ? 'רכישה' : 'Purchase'}
+                              </a>
                             </div>
                         </div>
                       </div>
                     );
                   }
 
-                  // Regular Grid Prizes
                   return (
                     <PrizeCard key={p.id} prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} donationUrl={campaign.donationUrl} ticketCount={ticketCount} />
                   );
@@ -399,17 +397,18 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 const PrizeShareButton: React.FC<{ prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
+    // עדכון: כפתור השיתוף של הפרס משתף כעת את הקטלוג המלא
     const shareData = {
-      title: isHE ? prize.titleHE : prize.titleEN,
-      text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}: ${prize.titleHE}!` : `Check out this amazing prize in ${campaignName}: ${prize.titleEN}!`,
-      url: window.location.origin + window.location.pathname,
+      title: isHE ? campaignName : campaignName,
+      text: isHE ? `בואו לראות את הקטלוג המלא ב-${campaignName}!` : `Check out the full catalog for ${campaignName}!`,
+      url: window.location.href,
     };
     try {
       if (navigator.share) {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        alert(isHE ? 'הקישור הועתק!' : 'Link copied!');
+        alert(isHE ? 'הקישור לקטלוג הועתק!' : 'Catalog link copied!');
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -443,7 +442,6 @@ const PrizeCard: React.FC<{ prize: Prize; isHE: boolean; campaignName: string; d
           <PrizeShareButton prize={prize} isHE={isHE} campaignName={campaignName} />
         </div>
 
-        {/* תווית מומלץ אם מסומן */}
         {prize.isFeatured && (
           <div className="absolute bottom-3 left-3 md:bottom-5 md:left-5 px-3 py-1 bg-[#C2A353] rounded-lg text-black font-black text-[8px] md:text-[10px] uppercase italic shadow-lg">
             {isHE ? 'מומלץ' : 'FEATURED'}
@@ -468,7 +466,6 @@ const PrizeCard: React.FC<{ prize: Prize; isHE: boolean; campaignName: string; d
               <a href={donationUrl} target="_blank" rel="noreferrer" className="w-full py-2.5 md:py-4 bg-white/5 border border-white/10 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.2em] hover:luxury-gradient hover:text-black hover:border-transparent transition-all duration-700 text-center italic">
                 {isHE ? 'פרטים והצטרפות' : 'View & Enter'}
               </a>
-              {/* כפתור רכישה עדין לכל פרס */}
               <a href={donationUrl} target="_blank" rel="noreferrer" className="text-center text-[9px] font-black text-white/30 hover:text-[#C2A353] transition-colors uppercase tracking-[0.2em] italic">
                 {isHE ? 'לרכישה' : 'Purchase'}
               </a>

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useStore } from './store/useStore';
@@ -35,6 +34,8 @@ const App: React.FC = () => {
         <main className="flex-grow container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Catalog store={store} />} />
+            {/* הוספת הנתיב הפומבי לקטלוג לפי לקוח - מאפשר גישה ללא התחברות */}
+            <Route path="/catalog/:clientId" element={<Catalog store={store} />} />
             <Route path="/admin" element={<AdminDashboard store={store} />} />
             <Route path="/portal" element={<DonorPortal store={store} />} />
             <Route path="/draw/:prizeId" element={<LiveDraw store={store} />} />
