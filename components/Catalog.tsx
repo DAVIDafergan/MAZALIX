@@ -14,19 +14,12 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   const [featuredIndex, setFeaturedIndex] = useState(0);
 
   // --- לוגיקה לזיהוי איזה קטלוג להציג ---
-  
-  // 1. אם יש clientId ב-URL (נכנסו דרך לינק שותף), נשתמש בו.
-  // 2. אם המשתמש מחובר (ולא סופר אדמין), נציג לו אוטומטית רק את הקטלוג שלו.
-  // 3. אם אף אחד מהנ"ל לא מתקיים - נציג את דף הבית הציבורי עם כל הכרטיסים.
   const activeClientId = clientId || (auth.isLoggedIn && !auth.isSuperAdmin ? auth.clientId : null);
   const isPublicHome = !activeClientId && !auth.isLoggedIn;
 
-  // פילטור נתונים לפי הלקוח האקטיבי
-  // אם אנחנו בדף הבית הציבורי, המערכים יהיו ריקים עד שייבחר קטלוג
   const clientPrizes = activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : prizes;
   const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : packages;
   
-  // מציאת הלקוח הנוכחי והקמפיין הספציפי שלו
   const currentClient = activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
   const currentCampaign = currentClient?.campaign || campaign;
 
@@ -61,20 +54,19 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(interval);
   }, [featuredPrizes.length]);
 
-  // --- תיקון מנגנון השיתוף ליצירת לינק ייחודי ---
-  const handleShareCatalog = async (targetClientId?: string) => {
-    // מזהה הלקוח לשיתוף: או זה שהועבר לפונקציה, או הלקוח הנוכחי שאנחנו צופים בו
-    const idToShare = targetClientId || activeClientId;
+  // --- תיקון סופי ומוחלט למנגנון השיתוף ---
+  const handleShareCatalog = async (idFromCard?: string) => {
+    // מזהה הלקוח: אם לחצו על כרטיס בדף הבית נשתמש ב-ID שלו, אחרת בלקוח האקטיבי
+    const idToShare = idFromCard || activeClientId;
     
-    if (!idToShare) return;
-
-    // בנייה מפורשת של הלינק כדי למנוע טעויות של HashRouter
-    const baseUrl = window.location.href.split('#')[0];
-    const shareUrl = `${baseUrl}#/catalog/${idToShare}`;
+    // אם אין ID (למשל בדף בית ריק), נשתמש בלינק הראשי, אחרת נבנה לינק קטלוג
+    const shareUrl = idToShare 
+      ? `${window.location.origin}/#/catalog/${idToShare}`
+      : window.location.origin;
     
     const shareData = {
       title: isHE ? currentCampaign.nameHE || 'Mazalix' : currentCampaign.nameEN || 'Mazalix',
-      text: isHE ? `בואו להשתתף במכירה הפומבית היוקרתית של ${currentCampaign.nameHE || currentClient?.name}!` : `Join the luxury auction of ${currentCampaign.nameEN || currentClient?.name}!`,
+      text: isHE ? `בואו להשתתף במכירה הפומבית היוקרתית!` : `Join the luxury auction!`,
       url: shareUrl, 
     };
 
@@ -83,10 +75,16 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        alert(isHE ? 'הקישור הישיר לקטלוג הועתק!' : 'Direct catalog link copied!');
+        alert(isHE ? 'הקישור הועתק בהצלחה!' : 'Link copied successfully!');
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') console.error('Error sharing catalog:', err);
+      // התעלמות משגיאות שנובעות מביטול המשתמש
+      if (err.name !== 'AbortError') {
+        console.error('Share failed:', err);
+        // Fallback למקרה שהשיתוף נכשל מסיבה טכנית
+        navigator.clipboard.writeText(shareUrl);
+        alert(isHE ? 'הקישור הועתק ללוח' : 'Link copied to clipboard');
+      }
     }
   };
 
@@ -142,7 +140,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                     <Layout size={18} /> {isHE ? 'כניסה לקטלוג' : 'View Catalog'}
                   </button>
                   <button 
-                    onClick={() => handleShareCatalog(client.id)} // שולח את ה-ID הספציפי של הכרטיס
+                    onClick={() => handleShareCatalog(client.id)}
                     className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-white hover:bg-white/10 transition-all flex items-center justify-center shadow-lg"
                   >
                     <Share2 size={20} />
@@ -183,7 +181,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         <div className="absolute top-6 right-6 md:top-10 md:right-10 z-20 flex items-center gap-3 bg-white/5 backdrop-blur-xl px-4 py-2 md:px-6 md:py-3 rounded-2xl border border-white/10 shadow-2xl animate-bounce" style={{ animationDuration: '4s' }}>
            <Ticket size={20} className="gold-text" />
            <div className="text-right">
-              <p className="text-xs md:text-xl font-black tracking-tighter italic leading-none">{tickets.filter((t: any) => t.clientId === activeClientId).length.toLocaleString()}</p>
+              <p className="text-xs md:text-xl font-black tracking-tighter italic leading-none">{tickets.length.toLocaleString()}</p>
               <p className="text-[7px] md:text-[9px] font-black uppercase text-gray-500 tracking-widest">{isHE ? 'כרטיסי מזל' : 'Luck Tokens'}</p>
            </div>
         </div>
@@ -225,7 +223,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
               </a>
             )}
             <button 
-              onClick={() => handleShareCatalog()} // משתף את הקטלוג הנוכחי עם ה-ID הנכון
+              onClick={() => handleShareCatalog()}
               className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all font-black text-xs uppercase tracking-widest"
             >
               <Share2 size={16} className="gold-text" />
@@ -247,12 +245,14 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                 <div key={p.id} className={`absolute inset-0 transition-all duration-1000 ease-in-out ${isActive ? 'opacity-100 translate-x-0 scale-100 z-10' : 'opacity-0 translate-x-full scale-105 z-0'}`}>
                   <img src={p.media[0]?.url} className="absolute inset-0 w-full h-full object-cover grayscale-[0.1] group-hover:scale-105 transition-transform duration-[4s]" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/50 to-transparent"></div>
+                  
                   <div className="absolute top-8 left-8 md:top-14 md:left-14 flex gap-4 z-20">
                     <div className="px-6 py-2.5 bg-black/60 backdrop-blur-xl rounded-[1.5rem] border border-[#C2A353]/30 flex items-center gap-3 shadow-2xl animate-pulse">
                       <Star size={24} className="gold-text fill-[#C2A353]" />
                       <span className="text-xs md:text-base font-black uppercase tracking-[0.4em] text-white italic">{isHE ? 'מומלץ' : 'RECOMMENDED'}</span>
                     </div>
                   </div>
+
                   <div className="absolute bottom-12 left-12 right-12 md:bottom-24 md:left-24 md:right-24 flex flex-col md:flex-row md:items-end justify-between gap-12 z-20">
                     <div className="space-y-4 max-w-3xl">
                        <h2 className="text-4xl md:text-8xl font-black italic tracking-tighter luxury-gradient bg-clip-text text-transparent drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)] leading-none">{isHE ? p.titleHE : p.titleEN}</h2>
@@ -266,7 +266,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                        </div>
                     </div>
                     <div className="flex gap-5">
-                        {/* תיקון שיתוף פרס ספציפי עם ה-ID של הלקוח */}
                         <PrizeShareButton activeClientId={activeClientId} prize={p} isHE={isHE} campaignName={isHE ? currentClient?.name : currentClient?.name} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
                         {(currentCampaign.donationUrl || campaign.donationUrl) && (
                          <div className="flex flex-col gap-2">
@@ -326,7 +325,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
           {regularPrizes.length > 0 && (
             <section className="space-y-6 md:space-y-8 px-1 md:px-0">
               <div className="flex justify-between items-end border-b border-white/5 pb-4 md:pb-6 gap-2 px-4">
-                <div className="space-y-0.5"><h2 className="text-base md:text-xl font-black italic tracking-tighter">{isHE ? 'קטלוג הפרסים' : 'The Collection'}</h2><p className="text-gray-500 font-bold uppercase tracking-[0.2em] text-[7px] md:text-[8px]">{isHE ? 'כל המתנות שמחכות לכם בקמפיין' : 'Explore every premium opportunity'}</p></div>
+                <div className="space-y-0.5"><h2 className="text-base md:text-xl font-black italic tracking-tighter">{isHE ? 'קטלוג המתנות' : 'The Collection'}</h2><p className="text-gray-500 font-bold uppercase tracking-[0.2em] text-[7px] md:text-[8px]">{isHE ? 'כל המתנות שמחכות לכם בקמפיין' : 'Explore every premium opportunity'}</p></div>
                 <div className="px-3 py-1 rounded-lg border border-white/10 text-[7px] md:text-[8px] font-black uppercase text-gray-600 bg-white/5 whitespace-nowrap">{regularPrizes.length} {isHE ? 'פריטים' : 'Items'}</div>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 px-4">
@@ -396,14 +395,24 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 const PrizeShareButton: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ activeClientId, prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
-    const baseUrl = window.location.href.split('#')[0];
-    const shareUrl = `${baseUrl}#/catalog/${activeClientId}`;
+    // יצירת לינק מפורש שכולל את ה-Origin וה-ID של הלקוח
+    const shareUrl = `${window.location.origin}/#/catalog/${activeClientId}`;
     
-    const shareData = { title: campaignName, text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, url: shareUrl };
+    const shareData = { 
+      title: campaignName, 
+      text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, 
+      url: shareUrl 
+    };
     try {
-      if (navigator.share) await navigator.share(shareData);
-      else { await navigator.clipboard.writeText(shareUrl); alert(isHE ? 'הקישור הועתק!' : 'Link copied!'); }
-    } catch (err: any) { if (err.name !== 'AbortError') console.error('Error sharing:', err); }
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        alert(isHE ? 'הקישור הועתק!' : 'Link copied!');
+      }
+    } catch (err: any) { 
+      if (err.name !== 'AbortError') console.error('Error sharing:', err); 
+    }
   };
 
   return (
