@@ -1,23 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { Language, Prize, DrawStatus, Package } from '../types';
-import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart, ExternalLink } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
 
 interface CatalogProps { store: any; }
 
 const Catalog: React.FC<CatalogProps> = ({ store }) => {
-  const { prizes, packages, lang, campaign, tickets, clients } = store;
-  const { clientId } = useParams<{ clientId: string }>(); // מאפשר זיהוי הלקוח מהלינק
+  const { prizes, packages, lang, campaign, tickets, clients, auth } = store;
+  const { clientId } = useParams<{ clientId: string }>(); 
+  const navigate = useNavigate();
   const isHE = lang === Language.HE;
   const [selectedPkg, setSelectedPkg] = useState<Package | null>(null);
   const [featuredIndex, setFeaturedIndex] = useState(0);
+
+  // --- לוגיקה חדשה: זיהוי איזה קטלוג להציג ---
+  
+  // 1. אם יש clientId ב-URL, נשתמש בו.
+  // 2. אם המשתמש מחובר (ולא סופר אדמין), נשתמש ב-clientId שלו.
+  // 3. אחרת, נדע שאנחנו בדף הבית הציבורי.
+  const activeClientId = clientId || (auth.isLoggedIn && !auth.isSuperAdmin ? auth.clientId : null);
+  const isPublicHome = !activeClientId && !auth.isLoggedIn;
+
+  // פילטור נתונים לפי הלקוח האקטיבי
+  const clientPrizes = activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : prizes;
+  const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : packages;
+  const currentCampaign = activeClientId ? (clients.find((c: any) => c.id === activeClientId)?.campaign || campaign) : campaign;
 
   // Countdown logic
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
   useEffect(() => {
+    const targetDate = currentCampaign.drawDate || campaign.drawDate;
     const timer = setInterval(() => {
-      const target = new Date(campaign.drawDate).getTime();
+      const target = new Date(targetDate).getTime();
       const now = new Date().getTime();
       const diff = target - now;
       if (diff > 0) {
@@ -30,11 +45,10 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [campaign.drawDate]);
+  }, [currentCampaign.drawDate, campaign.drawDate]);
 
-  const featuredPrizes = prizes.filter((p: Prize) => p.isFeatured);
+  const featuredPrizes = clientPrizes.filter((p: Prize) => p.isFeatured);
 
-  // Carousel auto-rotation logic for Main Prizes - 3 second interval
   useEffect(() => {
     if (featuredPrizes.length <= 1) return;
     const interval = setInterval(() => {
@@ -43,12 +57,11 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(interval);
   }, [featuredPrizes.length]);
 
-  const handleShareCatalog = async () => {
-    // עדכון: שימוש ב-window.location.href כדי לתפוס את הלינק המלא כולל ה-ClientID
+  const handleShareCatalog = async (customUrl?: string) => {
     const shareData = {
       title: isHE ? campaign.nameHE : campaign.nameEN,
-      text: isHE ? `בואו להשתתף במכירה הפומבית של ${campaign.nameHE}!` : `Join the ${campaign.nameEN} luxury auction!`,
-      url: window.location.href, 
+      text: isHE ? `בואו להשתתף במכירה הפומבית!` : `Join the luxury auction!`,
+      url: customUrl || window.location.href,
     };
 
     try {
@@ -56,35 +69,88 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareData.url);
-        alert(isHE ? 'הקישור לקטלוג הועתק ללוח!' : 'Catalog link copied to clipboard!');
+        alert(isHE ? 'הקישור הועתק ללוח!' : 'Link copied to clipboard!');
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Error sharing catalog:', err);
-      }
+      if (err.name !== 'AbortError') console.error('Error sharing catalog:', err);
     }
   };
 
-  const sortedPrizes = [...prizes].sort((a, b) => a.order - b.order);
+  const sortedPrizes = [...clientPrizes].sort((a, b) => a.order - b.order);
   const regularPrizes = sortedPrizes.filter((p: Prize) => !p.isFeatured);
 
-  const isEmpty = prizes.length === 0 && packages.length === 0;
+  const isEmpty = clientPrizes.length === 0 && clientPackages.length === 0;
 
+  // --- תצוגת דף הבית הציבורי (קמפיינים פעילים) ---
+  if (isPublicHome) {
+    return (
+      <div className="space-y-10 pb-20 animate-fade-in">
+        <header className="text-center space-y-4 py-10">
+          <h1 className="text-4xl md:text-6xl font-black italic luxury-gradient bg-clip-text text-transparent">
+            {isHE ? 'קמפיינים פעילים' : 'Active Campaigns'}
+          </h1>
+          <p className="text-gray-500 font-bold uppercase tracking-[0.3em] text-xs">
+            {isHE ? 'בחר קטלוג והצטרף להגרלה' : 'Select a catalog and join the raffle'}
+          </p>
+        </header>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-2">
+          {clients.map((client: any) => (
+            <div key={client.id} className="group glass-card rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-[#C2A353]/30 transition-all duration-500 shadow-2xl flex flex-col">
+              <div className="relative h-48 overflow-hidden">
+                <img src={client.campaign?.banner || campaign.banner} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[3s] opacity-60" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#020617] to-transparent"></div>
+                <div className="absolute top-6 left-6 w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10">
+                   <img src={client.campaign?.logo || campaign.logo} className="w-8 h-8 object-contain" />
+                </div>
+              </div>
+              
+              <div className="p-8 space-y-6 flex-1 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-2xl font-black italic gold-text mb-2">{client.name}</h3>
+                  <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">
+                    {isHE ? 'הגרלה בתאריך:' : 'Draw Date:'} {client.campaign?.drawDate || campaign.drawDate}
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => navigate(`/catalog/${client.id}`)}
+                    className="flex-1 py-4 luxury-gradient text-black font-black rounded-2xl text-xs uppercase tracking-tighter flex items-center justify-center gap-2 hover:scale-[1.02] transition-all"
+                  >
+                    <Layout size={16} /> {isHE ? 'כניסה לקטלוג' : 'View Catalog'}
+                  </button>
+                  <button 
+                    onClick={() => handleShareCatalog(`${window.location.origin}/#/catalog/${client.id}`)}
+                    className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white hover:bg-white/10 transition-all"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // --- תצוגת קטלוג ספציפי (הקוד המקורי שלך) ---
   return (
     <div className="space-y-6 md:space-y-12 pb-10">
       {/* כפתור רכישת כרטיסים בראש האתר */}
       <div className="flex justify-center pt-2 md:pt-4">
-         <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-2 md:px-12 md:py-3 luxury-gradient text-black font-black rounded-full shadow-[0_10px_30px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-xs md:text-sm uppercase tracking-tighter italic z-50">
+         <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-2 md:px-12 md:py-3 luxury-gradient text-black font-black rounded-full shadow-[0_10px_30px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-xs md:text-sm uppercase tracking-tighter italic z-50">
             <ShoppingCart size={16} />
             {isHE ? 'לרכישת כרטיסים' : 'Buy Tickets Now'}
          </a>
       </div>
 
       <header className="relative h-[400px] md:h-[600px] rounded-3xl md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-white/5 animate-fade-in mx-1 md:mx-0 hero-h">
-        {campaign.videoUrl ? (
-            <video src={campaign.videoUrl} className="w-full h-full object-cover opacity-30" autoPlay muted loop playsInline />
+        {currentCampaign.videoUrl ? (
+            <video src={currentCampaign.videoUrl} className="w-full h-full object-cover opacity-30" autoPlay muted loop playsInline />
         ) : (
-            <img src={campaign.banner} className="w-full h-full object-cover opacity-20 group-hover:scale-105 transition-transform duration-[4s]" alt="Banner" />
+            <img src={currentCampaign.banner || campaign.banner} className="w-full h-full object-cover opacity-20 group-hover:scale-105 transition-transform duration-[4s]" alt="Banner" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/70 to-transparent"></div>
         
@@ -99,12 +165,12 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 space-y-6 md:space-y-10">
           <div className="relative">
-             <img src={campaign.logo} className="w-16 h-16 md:w-32 md:h-32 object-contain drop-shadow-[0_0_30px_rgba(194,163,83,0.5)]" alt="Logo" />
+             <img src={currentCampaign.logo || campaign.logo} className="w-16 h-16 md:w-32 md:h-32 object-contain drop-shadow-[0_0_30px_rgba(194,163,83,0.5)]" alt="Logo" />
           </div>
           
           <div className="space-y-2">
             <h1 className="text-2xl md:text-6xl font-black tracking-tighter luxury-gradient bg-clip-text text-transparent italic leading-tight">
-              {isHE ? campaign.nameHE : campaign.nameEN}
+              {isHE ? currentCampaign.nameHE || campaign.nameHE : currentCampaign.nameEN || campaign.nameEN}
             </h1>
             
             {/* מונה הגרלה מסודר מימין לשמאל: ימים -> שעות -> דקות -> שניות */}
@@ -123,19 +189,19 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
             </div>
 
             <div className="flex flex-wrap justify-center gap-4 md:gap-8 text-gray-400 font-bold uppercase tracking-[0.3em] text-[8px] md:text-[10px] pt-4">
-              <div className="flex items-center gap-2"><Calendar className="gold-text" size={12}/> {campaign.drawDate}</div>
+              <div className="flex items-center gap-2"><Calendar className="gold-text" size={12}/> {currentCampaign.drawDate || campaign.drawDate}</div>
               <div className="flex items-center gap-2"><MapPin className="gold-text" size={12}/> {isHE ? 'אירוע הגרלה חי' : 'Live Event'}</div>
             </div>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 items-center">
-            {campaign.donationUrl && (
-              <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="px-10 py-3 md:px-16 md:py-4 luxury-gradient text-black font-black rounded-xl md:rounded-[1.5rem] shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all text-xs md:text-base uppercase tracking-tighter italic">
+            {(currentCampaign.donationUrl || campaign.donationUrl) && (
+              <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-10 py-3 md:px-16 md:py-4 luxury-gradient text-black font-black rounded-xl md:rounded-[1.5rem] shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all text-xs md:text-base uppercase tracking-tighter italic">
                 {isHE ? 'להצטרפות להגרלה' : 'Join Auction Now'}
               </a>
             )}
             <button 
-              onClick={handleShareCatalog}
+              onClick={() => handleShareCatalog()}
               className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all font-black text-xs uppercase tracking-widest"
             >
               <Share2 size={16} className="gold-text" />
@@ -187,13 +253,13 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                     </div>
                     <div className="flex gap-5">
                         <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
-                        {campaign.donationUrl && (
+                        {(currentCampaign.donationUrl || campaign.donationUrl) && (
                          <div className="flex flex-col gap-2">
-                           <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_60px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
+                           <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_60px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
                             {isHE ? 'להשתתפות עכשיו' : 'Enter Auction'}
                            </a>
                            {/* כפתור רכישה עדין */}
-                           <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-[10px] md:text-xs font-black text-white/50 hover:text-white transition-colors uppercase tracking-widest underline italic">
+                           <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-[10px] md:text-xs font-black text-white/50 hover:text-white transition-colors uppercase tracking-widest underline italic">
                               {isHE ? 'רכישה מהירה' : 'Quick Purchase'}
                            </a>
                          </div>
@@ -229,7 +295,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         </div>
       ) : (
         <>
-          {packages.length > 0 && (
+          {clientPackages.length > 0 && (
             <section className="space-y-3 md:space-y-5 px-1 md:px-0">
               <div className="flex items-center gap-2">
                  <div className="h-px flex-1 bg-white/5"></div>
@@ -237,7 +303,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                  <div className="h-px flex-1 bg-white/5"></div>
               </div>
               <div className="flex gap-3 overflow-x-auto pb-6 scrollbar-hide">
-                {packages.map((pkg: Package) => {
+                {clientPackages.map((pkg: Package) => {
                   const totalTickets = pkg.rules.reduce((acc, rule) => acc + rule.count, 0);
                   return (
                     <div 
@@ -296,6 +362,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                         <img src={p.media[0]?.url} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[3s]" />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/20 to-transparent"></div>
                         
+                        {/* שינוי תווית ל-"מומלץ" */}
                         <div className="absolute top-10 left-10 md:top-16 md:left-16 flex gap-4">
                             <div className="px-6 py-2.5 bg-black/60 backdrop-blur-xl rounded-2xl border border-white/10 flex items-center gap-3 shadow-2xl">
                               <Layers size={24} className="gold-text" />
@@ -322,13 +389,13 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                             <div className="flex flex-col gap-4">
                               <div className="flex gap-4">
                                 <PrizeShareButton prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
-                                {campaign.donationUrl && (
-                                  <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
+                                {(currentCampaign.donationUrl || campaign.donationUrl) && (
+                                  <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">
                                     {isHE ? 'להצטרפות להגרלה' : 'Claim Tokens'}
                                   </a>
                                 )}
                               </div>
-                              <a href={campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-xs font-black text-white/40 hover:text-white transition-colors underline italic uppercase tracking-widest">
+                              <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="text-center text-xs font-black text-white/40 hover:text-white transition-colors underline italic uppercase tracking-widest">
                                 {isHE ? 'רכישה' : 'Purchase'}
                               </a>
                             </div>
@@ -338,7 +405,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
                   }
 
                   return (
-                    <PrizeCard key={p.id} prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} donationUrl={campaign.donationUrl} ticketCount={ticketCount} />
+                    <PrizeCard key={p.id} prize={p} isHE={isHE} campaignName={isHE ? campaign.nameHE : campaign.nameEN} donationUrl={currentCampaign.donationUrl || campaign.donationUrl} ticketCount={ticketCount} />
                   );
                 })}
               </div>
@@ -397,7 +464,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 const PrizeShareButton: React.FC<{ prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
-    // עדכון: כפתור השיתוף של הפרס משתף כעת את הקטלוג המלא
     const shareData = {
       title: isHE ? campaignName : campaignName,
       text: isHE ? `בואו לראות את הקטלוג המלא ב-${campaignName}!` : `Check out the full catalog for ${campaignName}!`,
