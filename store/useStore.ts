@@ -42,6 +42,7 @@ export function useStore() {
         if (auth.clientId && !auth.isSuperAdmin) {
           const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
           if (currentClient?.campaign) {
+            console.log("✅ נטענו הגדרות קמפיין מהמסד:", currentClient.campaign.nameHE);
             setCampaign(currentClient.campaign);
           }
         }
@@ -117,24 +118,16 @@ export function useStore() {
   }, [auth.isLoggedIn]);
 
   // --- תיקון: מניעת דריסת נתוני Database על ידי localStorage ישן ---
+  // הסרנו את הקוד שטען קמפיין ופרסים מ-localStorage כדי שרק ה-DB יקבע
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId) {
       if (!auth.isSuperAdmin) {
-        const savedData = localStorage.getItem(`${LS_KEY}_data_${auth.clientId}`);
-        // טוען מהזיכרון המקומי רק אם אין עדיין נתונים מהמסד (למניעת דריסה)
-        if (savedData && campaign === INITIAL_CAMPAIGN) {
-          const data = JSON.parse(savedData);
-          setCampaign(data.campaign || INITIAL_CAMPAIGN);
-          setPrizes(data.prizes || INITIAL_PRIZES);
-          setPackages(data.packages || INITIAL_PACKAGES);
-          setDonors(data.donors || []);
-          setTickets(data.tickets || []);
-        }
+        // כאן היינו טוענים localStorage - הסרנו את זה כדי למנוע דריסה של ה-DB
       }
     }
   }, [auth.isLoggedIn, auth.clientId, auth.isSuperAdmin]);
 
-  // Persist current context data
+  // Persist current context data (שומר גיבוי אבל לא דורס טעינה)
   useEffect(() => {
     if (auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin) {
       const dataToSave = { campaign, prizes, packages, donors, tickets };
@@ -200,19 +193,20 @@ export function useStore() {
     setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
-  // --- תיקון: עדכון קמפיין ששולח ישירות לשרת ---
+  // --- תיקון: עדכון קמפיין ששולח ישירות לשרת ושומר במסד ---
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
     
     if (auth.clientId && !auth.isSuperAdmin) {
       try {
+        console.log("📡 שומר הגדרות קמפיין למסד הנתונים...");
         await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ campaign: newCampaign })
         });
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }
   };
 
@@ -286,7 +280,6 @@ export function useStore() {
   const addDonor = async (donor: Donor) => {
     const matched = [...packages].sort((a, b) => b.minAmount - a.minAmount).find(p => donor.totalDonated >= p.minAmount);
     const donorWithPkg = { ...donor, packageId: matched?.id, clientId: auth.clientId };
-
     try {
       const res = await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
