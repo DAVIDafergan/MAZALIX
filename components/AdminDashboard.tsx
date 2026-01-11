@@ -1,7 +1,6 @@
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
-import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown } from 'lucide-react';
+import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -26,6 +25,34 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [pkgForm, setPkgForm] = useState<Partial<Package>>({
     nameHE: '', minAmount: 0, rules: [], image: '', joinLink: '', color: '#C2A353'
   });
+
+  // פונקציית עזר להמרת קובץ ל-Base64
+  const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'prize' | 'package', mediaType?: 'image' | 'video') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const base64 = await toBase64(file);
+      if (type === 'prize' && mediaType) {
+        const mediaItem: PrizeMedia = { id: Math.random().toString(36).substr(2, 9), type: mediaType, url: base64 };
+        setNewPrize(prev => ({
+          ...prev,
+          media: [...(prev.media || []), mediaItem]
+        }));
+      } else if (type === 'package') {
+        setPkgForm(prev => ({ ...prev, image: base64 }));
+      }
+    } catch (err) {
+      console.error("File upload failed:", err);
+    }
+  };
 
   const generateAIDescription = async () => {
     if (!newPrize.titleHE) {
@@ -105,14 +132,36 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const handleSimulatedImport = () => {
     setIsImporting(true);
     setTimeout(() => {
-      const newDonors = [
-        { id: Math.random().toString(36).substr(2, 9), name: 'משה כהן', phone: '0501112233', email: 'moshe@example.com', totalDonated: 1800 },
-        { id: Math.random().toString(36).substr(2, 9), name: 'Sarah Levy', phone: '0524445566', email: 'sarah@example.com', totalDonated: 10 },
-        { id: Math.random().toString(36).substr(2, 9), name: 'אבי לוי', phone: '0547778899', email: 'avi@example.com', totalDonated: 7200 },
+      const rawData = [
+        { name: 'משה כהן', phone: '0501112233', email: 'moshe@example.com', totalDonated: 1800 },
+        { name: 'Sarah Levy', phone: '0524445566', email: 'sarah@example.com', totalDonated: 3600 },
+        { name: 'אבי לוי', phone: '0547778899', email: 'avi@example.com', totalDonated: 7200 },
       ];
-      newDonors.forEach(d => addDonor(d as Donor));
+
+      rawData.forEach(item => {
+        const donorId = Math.random().toString(36).substr(2, 9);
+        // מציאת מסלול תואם בדיוק לפי הסכום
+        const matchedPackage = packages.find((p: Package) => p.minAmount === item.totalDonated);
+        
+        const newDonor: Donor = {
+          id: donorId,
+          name: item.name,
+          phone: item.phone,
+          email: item.email,
+          totalDonated: item.totalDonated,
+          packageId: matchedPackage ? matchedPackage.id : undefined
+        };
+        
+        addDonor(newDonor);
+        
+        // אם נמצא מסלול, המערכת משייכת אותו אוטומטית (זה ייצר כרטיסים לפי חוקי המסלול ב-store)
+        if (matchedPackage) {
+            assignPackageToDonor(donorId, matchedPackage.id);
+        }
+      });
+
       setIsImporting(false);
-      alert(isHE ? 'ייבוא הנתונים הושלם בהצלחה!' : 'Data import completed successfully!');
+      alert(isHE ? 'ייבוא הנתונים והתאמת מסלולים הושלמה!' : 'Data import and route mapping completed!');
     }, 1500);
   };
 
@@ -369,8 +418,17 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     <input placeholder={isHE ? 'שווי מוערך ₪' : 'Market Value ₪'} type="number" className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={newPrize.value || ''} onChange={e => setNewPrize({...newPrize, value: Number(e.target.value)})} />
                     
                     <div className="flex gap-1.5">
-                      <button onClick={() => handleAddMedia('image')} className="flex-1 bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 hover:bg-white/10 transition-all"><ImageIcon size={10}/> {isHE ? 'תמונה' : 'Image'}</button>
-                      <button onClick={() => handleAddMedia('video')} className="flex-1 bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 hover:bg-white/10 transition-all"><Video size={10}/> {isHE ? 'וידאו' : 'Video'}</button>
+                      <div className="flex-1 relative">
+                        <button onClick={() => handleAddMedia('image')} className="w-full bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 hover:bg-white/10 transition-all"><ImageIcon size={10}/> {isHE ? 'לינק' : 'Link'}</button>
+                      </div>
+                      <div className="flex-1 relative group">
+                        <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'prize', 'image')} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                        <button className="w-full bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 group-hover:bg-white/10 transition-all"><Paperclip size={10}/> {isHE ? 'מהמחשב' : 'Upload'}</button>
+                      </div>
+                      <div className="flex-1 relative group">
+                        <input type="file" accept="video/*" onChange={(e) => handleFileUpload(e, 'prize', 'video')} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                        <button className="w-full bg-white/5 p-1.5 rounded-lg text-[9px] font-bold border border-white/10 flex items-center justify-center gap-1 group-hover:bg-white/10 transition-all"><Video size={10}/> {isHE ? 'וידאו' : 'Video'}</button>
+                      </div>
                     </div>
 
                     <textarea placeholder={isHE ? 'תיאור שיווקי יוקרתי (עברית)' : 'Luxury Description (HE)'} className="md:col-span-2 bg-white/10 p-2 rounded-lg text-xs min-h-[60px] outline-none border border-white/5 focus:border-[#C2A353]" value={newPrize.descriptionHE} onChange={e => setNewPrize({...newPrize, descriptionHE: e.target.value})} />
@@ -477,8 +535,14 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     <input className="w-full bg-white/10 p-2 rounded-lg text-xs font-bold outline-none" type="number" value={pkgForm.minAmount || ''} onChange={e => setPkgForm({...pkgForm, minAmount: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תמונה URL' : 'Image URL'}</label>
-                    <input placeholder={isHE ? 'תמונה URL' : 'Img URL'} className="w-full bg-white/10 p-2 rounded-lg text-[10px]" value={pkgForm.image} onChange={e => setPkgForm({...pkgForm, image: e.target.value})} />
+                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תמונה' : 'Image'}</label>
+                    <div className="flex gap-1">
+                      <input placeholder={isHE ? 'URL תמונה' : 'Img URL'} className="flex-1 bg-white/10 p-2 rounded-lg text-[10px]" value={pkgForm.image} onChange={e => setPkgForm({...pkgForm, image: e.target.value})} />
+                      <div className="relative group">
+                        <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'package')} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                        <button className="bg-[#C2A353] text-black p-2 rounded-lg shadow-lg group-hover:scale-105 transition-all"><Paperclip size={12}/></button>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לינק הצטרפות' : 'Join Link'}</label>
@@ -568,7 +632,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               </div>
               <div onClick={handleSimulatedImport} className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${isImporting ? 'border-[#C2A353] bg-[#C2A353]/5' : 'border-white/10 hover:border-white/20'}`}>
                 {isImporting ? <RefreshCcw size={20} className="mx-auto text-[#C2A353] animate-spin" /> : <Upload size={20} className="mx-auto text-gray-600" />}
-                <p className="text-[10px] mt-1 font-bold text-gray-400">{isHE ? 'ייבוא אקסל' : 'Import CSV'}</p>
+                <p className="text-[10px] mt-1 font-bold text-gray-400">{isHE ? 'ייבוא והתאמת מסלולים אוטומטית' : 'Import & Auto-Map Routes'}</p>
               </div>
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 text-xs">
                 {donors.length === 0 ? (
@@ -657,11 +721,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                             <button onClick={() => copyPublicLink(p.id)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
                         </div>
                         <div className="flex gap-2">
-                           <Link to={`/draw/${p.id}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}>
+                            <Link to={`/draw/${p.id}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}>
                               <Play size={12} fill="currentColor" />
                               {isHE ? 'הפעל הגרלה' : 'Start Live Draw'}
-                           </Link>
-                           <Link to={`/live/${p.id}`} target="_blank" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"><ExternalLink size={16}/></Link>
+                            </Link>
+                            <Link to={`/live/${p.id}`} target="_blank" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"><ExternalLink size={16}/></Link>
                         </div>
                     </div>
                     ))
