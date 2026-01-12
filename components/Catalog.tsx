@@ -3,6 +3,66 @@ import { Language, Prize, DrawStatus, Package } from '../types';
 import { Calendar, MapPin, Sparkles, Layout, Gift, ChevronLeft, ChevronRight, ArrowUpRight, Award, Inbox, X, Ticket, Layers, Timer, Share2, Star, ShoppingCart, ExternalLink, ArrowRight } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 
+// --- רכיב כפתור שיתוף לפרס בודד (הועבר לראש הקובץ למניעת שגיאת טעינה) ---
+const PrizeShareButton: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ activeClientId, prize, isHE, campaignName, className, iconSize = 12 }) => {
+  const handleSharePrize = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const shareUrl = `${window.location.origin}/#/catalog/${activeClientId}`;
+    const shareData = { title: campaignName, text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, url: shareUrl };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else { await navigator.clipboard.writeText(shareUrl); alert(isHE ? 'הקישור הועתק!' : 'Link copied!'); }
+    } catch (err: any) { if (err.name !== 'AbortError') console.error('Error sharing:', err); }
+  };
+
+  return (
+    <button onClick={handleSharePrize} className={`bg-black/60 backdrop-blur-xl border border-white/10 hover:bg-[#C2A353] hover:text-black transition-all text-white flex items-center justify-center shadow-2xl ${className || 'p-1.5 md:p-2 rounded-md md:rounded-lg'}`}>
+      <Share2 size={iconSize} />
+    </button>
+  );
+};
+
+// --- רכיב כרטיס פרס בודד (הועבר לראש הקובץ למניעת שגיאת טעינה) ---
+const PrizeCard: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; donationUrl?: string; ticketCount: number }> = ({ activeClientId, prize, isHE, campaignName, donationUrl, ticketCount }) => {
+  return (
+    <div className="group relative rounded-[2rem] md:rounded-[2.5rem] p-3 md:p-5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-[#C2A353]/20 transition-all duration-700 animate-fade-in flex flex-col shadow-xl">
+      <div className="relative h-40 md:h-64 rounded-2xl md:rounded-[2rem] overflow-hidden mb-4 md:mb-6 shadow-2xl border border-white/5">
+        <img src={prize.media[0]?.url} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[2s]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#020617]/70 to-transparent"></div>
+        
+        <div className="absolute top-3 left-3 md:top-5 md:left-5 z-10 flex gap-3">
+          <div className="px-3 py-1 bg-black/60 backdrop-blur-xl rounded-xl border border-white/10 flex items-center gap-2 shadow-2xl">
+              <Ticket size={12} className="gold-text" />
+              <span className="text-[10px] md:text-xs font-black italic text-white">{ticketCount.toLocaleString()}</span>
+          </div>
+          <PrizeShareButton activeClientId={activeClientId} prize={prize} isHE={isHE} campaignName={campaignName} />
+        </div>
+
+        {prize.isFeatured && (
+          <div className="absolute bottom-3 left-3 md:bottom-5 md:left-5 px-3 py-1 bg-[#C2A353] rounded-lg text-black font-black text-[8px] md:text-[10px] uppercase italic shadow-lg">
+            {isHE ? 'מומלץ' : 'FEATURED'}
+          </div>
+        )}
+
+        <div className="absolute top-3 right-3 md:top-5 md:right-5 px-3 py-1 bg-black/60 backdrop-blur-xl rounded-xl border border-white/5 text-white font-black text-[9px] md:text-[10px] tracking-tight">
+          ₪{prize.value.toLocaleString()}
+        </div>
+      </div>
+      <div className="px-1 md:px-3 pb-2 space-y-3 md:space-y-5 flex-1 flex flex-col justify-between text-center">
+        <div className="space-y-2">
+          <h3 className="text-sm md:text-xl font-black tracking-tight group-hover:gold-text transition-colors duration-700 leading-tight italic line-clamp-1">{isHE ? prize.titleHE : prize.titleEN}</h3>
+          <p className="text-gray-500 text-[10px] md:text-xs leading-relaxed line-clamp-2 font-medium italic hidden md:block">{isHE ? prize.descriptionHE : prize.descriptionEN}</p>
+        </div>
+        <div className="pt-2 flex flex-col items-center gap-3">
+          <p className="text-sm md:text-lg font-black italic leading-none gold-text tracking-tighter">₪{prize.value.toLocaleString()}</p>
+          {donationUrl && (<div className="w-full flex flex-col gap-2"><a href={donationUrl} target="_blank" rel="noreferrer" className="w-full py-2.5 md:py-4 bg-white/5 border border-white/10 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.2em] hover:luxury-gradient hover:text-black hover:border-transparent transition-all duration-700 text-center italic shadow-lg">{isHE ? 'פרטים והצטרפות' : 'View Opportunity'}</a></div>)}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- הרכיב הראשי Catalog ---
 interface CatalogProps { store: any; }
 
 const Catalog: React.FC<CatalogProps> = ({ store }) => {
@@ -15,14 +75,12 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   const [featuredIndex, setFeaturedIndex] = useState(0);
 
   // --- לוגיקה לזיהוי איזה קטלוג להציג ---
-  // עדיפות ראשונה ל-ID מהכתובת, עדיפות שנייה ללקוח מחובר
   const activeClientId = useMemo(() => {
     return clientId || (auth.isLoggedIn && !auth.isSuperAdmin ? auth.clientId : null);
   }, [clientId, auth]);
 
-  const isPublicHome = !clientId && (!auth.isLoggedIn || auth.isSuperAdmin);
+  const isPublicHome = !activeClientId && !auth.isLoggedIn;
 
-  // סינון נתונים לפי הלקוח האקטיבי
   const clientPrizes = useMemo(() => 
     activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : prizes
   , [prizes, activeClientId]);
@@ -35,14 +93,12 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     activeClientId ? tickets.filter((t: any) => t.clientId === activeClientId) : tickets
   , [tickets, activeClientId]);
   
-  // שליפת הקמפיין הספציפי של הלקוח
   const currentClient = useMemo(() => 
     activeClientId ? clients.find((c: any) => c.id === activeClientId) : null
   , [clients, activeClientId]);
 
   const currentCampaign = currentClient?.campaign || campaign;
 
-  // לוגיקת טיימר (Countdown)
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
   useEffect(() => {
@@ -65,7 +121,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(timer);
   }, [currentCampaign.drawDate, campaign.drawDate]);
 
-  // לוגיקת באנר מסתובב
   const featuredPrizes = useMemo(() => 
     clientPrizes.filter((p: Prize) => p.isFeatured)
   , [clientPrizes]);
@@ -78,7 +133,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(interval);
   }, [featuredPrizes.length]);
 
-  // מנגנון שיתוף דינמי
   const handleShareCatalog = async (idFromCard?: string) => {
     const idToShare = idFromCard || activeClientId;
     const shareUrl = idToShare 
@@ -112,7 +166,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 
   const isEmpty = clientPrizes.length === 0 && clientPackages.length === 0;
 
-  // --- תצוגת דף הבית הציבורי (רשימת כל הקמפיינים) ---
   if (isPublicHome) {
     return (
       <div className="space-y-12 pb-20 animate-fade-in max-w-7xl mx-auto">
@@ -179,18 +232,19 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     );
   }
 
-  // --- תצוגת קטלוג ספציפי של לקוח ---
   return (
     <div className="space-y-6 md:space-y-12 pb-10">
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
-        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest">
-           <ArrowRight size={14} className={isHE ? '' : 'rotate-180'} /> {isHE ? 'חזרה לכל הקמפיינים' : 'Back to all campaigns'}
-        </button>
-        
-        <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-3 luxury-gradient text-black font-black rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all text-xs uppercase tracking-tighter italic">
-          <ShoppingCart size={16} />
-          {isHE ? 'לרכישת כרטיסים' : 'Buy Tickets Now'}
-        </a>
+      {!auth.isLoggedIn && (
+         <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest px-4">
+            <ArrowRight size={14} className={isHE ? '' : 'rotate-180'} /> {isHE ? 'חזרה לכל הקמפיינים' : 'Back to all campaigns'}
+         </button>
+      )}
+
+      <div className="flex justify-center pt-2 md:pt-4">
+         <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-2 md:px-12 md:py-3 luxury-gradient text-black font-black rounded-full shadow-[0_10px_30px_rgba(194,163,83,0.4)] hover:scale-105 active:scale-95 transition-all text-xs md:text-sm uppercase tracking-tighter italic z-50">
+            <ShoppingCart size={16} />
+            {isHE ? 'לרכישת כרטיסים' : 'Buy Tickets Now'}
+         </a>
       </div>
 
       <header className="relative h-[400px] md:h-[600px] rounded-3xl md:rounded-[2.5rem] overflow-hidden group shadow-2xl border border-white/5 animate-fade-in mx-1 md:mx-0 hero-h">
@@ -412,65 +466,6 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-// --- רכיב כפתור שיתוף לפרס בודד ---
-const PrizeShareButton: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ activeClientId, prize, isHE, campaignName, className, iconSize = 12 }) => {
-  const handleSharePrize = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    const shareUrl = `${window.location.origin}/#/catalog/${activeClientId}`;
-    const shareData = { title: campaignName, text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, url: shareUrl };
-    try {
-      if (navigator.share) await navigator.share(shareData);
-      else { await navigator.clipboard.writeText(shareUrl); alert(isHE ? 'הקישור הועתק!' : 'Link copied!'); }
-    } catch (err: any) { if (err.name !== 'AbortError') console.error('Error sharing:', err); }
-  };
-
-  return (
-    <button onClick={handleSharePrize} className={`bg-black/60 backdrop-blur-xl border border-white/10 hover:bg-[#C2A353] hover:text-black transition-all text-white flex items-center justify-center shadow-2xl ${className || 'p-1.5 md:p-2 rounded-md md:rounded-lg'}`}>
-      <Share2 size={iconSize} />
-    </button>
-  );
-};
-
-// --- רכיב כרטיס פרס בודד ---
-const PrizeCard: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; donationUrl?: string; ticketCount: number }> = ({ activeClientId, prize, isHE, campaignName, donationUrl, ticketCount }) => {
-  return (
-    <div className="group relative rounded-[2rem] md:rounded-[2.5rem] p-3 md:p-5 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-[#C2A353]/20 transition-all duration-700 animate-fade-in flex flex-col shadow-xl">
-      <div className="relative h-40 md:h-64 rounded-2xl md:rounded-[2rem] overflow-hidden mb-4 md:mb-6 shadow-2xl border border-white/5">
-        <img src={prize.media[0]?.url} className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-[2s]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#020617]/70 to-transparent"></div>
-        
-        <div className="absolute top-3 left-3 md:top-5 md:left-5 z-10 flex gap-3">
-          <div className="px-3 py-1 bg-black/60 backdrop-blur-xl rounded-xl border border-white/10 flex items-center gap-2 shadow-2xl">
-              <Ticket size={12} className="gold-text" />
-              <span className="text-[10px] md:text-xs font-black italic text-white">{ticketCount.toLocaleString()}</span>
-          </div>
-          <PrizeShareButton activeClientId={activeClientId} prize={prize} isHE={isHE} campaignName={campaignName} />
-        </div>
-
-        {prize.isFeatured && (
-          <div className="absolute bottom-3 left-3 md:bottom-5 md:left-5 px-3 py-1 bg-[#C2A353] rounded-lg text-black font-black text-[8px] md:text-[10px] uppercase italic shadow-lg">
-            {isHE ? 'מומלץ' : 'FEATURED'}
-          </div>
-        )}
-
-        <div className="absolute top-3 right-3 md:top-5 md:right-5 px-3 py-1 bg-black/60 backdrop-blur-xl rounded-xl border border-white/5 text-white font-black text-[9px] md:text-[10px] tracking-tight">
-          ₪{prize.value.toLocaleString()}
-        </div>
-      </div>
-      <div className="px-1 md:px-3 pb-2 space-y-3 md:space-y-5 flex-1 flex flex-col justify-between text-center">
-        <div className="space-y-2">
-          <h3 className="text-sm md:text-xl font-black tracking-tight group-hover:gold-text transition-colors duration-700 leading-tight italic line-clamp-1">{isHE ? prize.titleHE : prize.titleEN}</h3>
-          <p className="text-gray-500 text-[10px] md:text-xs leading-relaxed line-clamp-2 font-medium italic hidden md:block">{isHE ? prize.descriptionHE : prize.descriptionEN}</p>
-        </div>
-        <div className="pt-2 flex flex-col items-center gap-3">
-          <p className="text-sm md:text-lg font-black italic leading-none gold-text tracking-tighter">₪{prize.value.toLocaleString()}</p>
-          {donationUrl && (<div className="w-full flex flex-col gap-2"><a href={donationUrl} target="_blank" rel="noreferrer" className="w-full py-2.5 md:py-4 bg-white/5 border border-white/10 rounded-xl md:rounded-2xl font-black text-[9px] md:text-[11px] uppercase tracking-[0.2em] hover:luxury-gradient hover:text-black hover:border-transparent transition-all duration-700 text-center italic shadow-lg">{isHE ? 'פרטים והצטרפות' : 'View Opportunity'}</a></div>)}
-        </div>
-      </div>
     </div>
   );
 };
