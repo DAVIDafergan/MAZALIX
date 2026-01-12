@@ -1,13 +1,11 @@
+export enum Language { HE = 'HE', EN = 'EN' }
+export enum DrawStatus { OPEN = 'OPEN', DRAWING = 'DRAWING', DRAWN = 'DRAWN' }
 
-export enum Language {
-  HE = 'he',
-  EN = 'en'
-}
-
-export enum DrawStatus {
-  OPEN = 'OPEN',
-  CLOSED = 'CLOSED',
-  DRAWN = 'DRAWN'
+export interface UserAuth {
+  isLoggedIn: boolean;
+  isSuperAdmin: boolean;
+  clientId?: string; // הוספנו את זה כדי לזהות איזה קמפיין מנהלים
+  token?: string;
 }
 
 export interface PrizeMedia {
@@ -18,8 +16,7 @@ export interface PrizeMedia {
 
 export interface Prize {
   id: string;
-  // Fix: Added optional MongoDB _id to match backend data
-  _id?: string;
+  clientId: string;
   titleHE: string;
   titleEN: string;
   descriptionHE: string;
@@ -27,10 +24,10 @@ export interface Prize {
   value: number;
   media: PrizeMedia[];
   status: DrawStatus;
+  order: number;
   winnerId?: string;
   isFeatured?: boolean;
   isFullPage?: boolean;
-  order: number;
 }
 
 export interface PackageRule {
@@ -40,32 +37,29 @@ export interface PackageRule {
 
 export interface Package {
   id: string;
-  // Fix: Added optional MongoDB _id to match backend data
-  _id?: string;
+  clientId: string;
   nameHE: string;
   nameEN: string;
   minAmount: number;
   rules: PackageRule[];
   image?: string;
+  color?: string;
   joinLink?: string;
-  color?: string; // Hex color for the theme
 }
 
 export interface Donor {
   id: string;
-  // Fix: Added optional MongoDB _id to match backend data
-  _id?: string;
+  clientId: string;
   name: string;
-  email: string;
   phone: string;
+  email: string;
   totalDonated: number;
   packageId?: string;
 }
 
 export interface Ticket {
   id: string;
-  // Fix: Added optional MongoDB _id to match backend data
-  _id?: string;
+  clientId: string;
   donorId: string;
   prizeId: string;
   createdAt: number;
@@ -74,27 +68,21 @@ export interface Ticket {
 export interface CampaignSettings {
   nameHE: string;
   nameEN: string;
+  drawDate: string;
+  donationUrl: string;
   logo: string;
   banner: string;
   videoUrl?: string;
-  drawDate: string;
-  primaryColor: string;
-  donationUrl?: string;
 }
 
 export interface Client {
   id: string;
-  // Fix: Added optional MongoDB _id to match backend data
-  _id?: string;
   username: string;
-  password?: string; // Only for creation
+  password?: string;
   displayName: string;
-  createdAt: number;
+  phone?: string;
+  email?: string;
   isActive: boolean;
-}
-
-export interface UserAuth {
-  isSuperAdmin: boolean;
-  clientId?: string;
-  isLoggedIn: boolean;
+  createdAt: number;
+  campaign: CampaignSettings;
 }
