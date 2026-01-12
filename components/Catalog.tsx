@@ -131,12 +131,15 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
     return activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
   }, [clients, activeClientId]);
 
-  const currentCampaign = currentClient?.campaign || campaign || {};
+  // משיכת הקמפיין: סדר עדיפויות - קמפיין הלקוח, לאחר מכן הקמפיין מהסטור (שם נשמרות ההגדרות מהמנהל)
+  const currentCampaign = useMemo(() => {
+    return currentClient?.campaign || campaign || {};
+  }, [currentClient, campaign]);
 
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0 });
 
   useEffect(() => {
-    const targetDate = currentCampaign?.drawDate || campaign?.drawDate;
+    const targetDate = currentCampaign?.drawDate;
     if (!targetDate) return;
 
     const timer = setInterval(() => {
@@ -155,7 +158,7 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [currentCampaign?.drawDate, campaign?.drawDate]);
+  }, [currentCampaign?.drawDate]);
 
   const featuredPrizes = useMemo(() => 
     clientPrizes.filter((p: Prize) => p.isFeatured)
@@ -265,7 +268,7 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
         <button onClick={() => navigate?.('/')} className="flex items-center gap-2 text-gray-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest">
            <ArrowRight size={14} className={isHE ? '' : 'rotate-180'} /> {isHE ? 'חזרה לכל הקמפיינים' : 'Back to all campaigns'}
         </button>
-        <a href={currentCampaign?.donationUrl || campaign?.donationUrl || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-3 luxury-gradient text-black font-black rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all text-xs uppercase tracking-tighter italic">
+        <a href={currentCampaign?.donationUrl || '#'} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-8 py-3 luxury-gradient text-black font-black rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all text-xs uppercase tracking-tighter italic">
           <ShoppingCart size={16} />
           {isHE ? 'לרכישת כרטיסים' : 'Buy Tickets Now'}
         </a>
@@ -275,7 +278,7 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
         {currentCampaign?.videoUrl ? (
             <video src={currentCampaign.videoUrl} className="w-full h-full object-cover opacity-30" autoPlay muted loop playsInline />
         ) : (
-            <img src={currentCampaign?.banner || campaign?.banner || ''} className="w-full h-full object-cover opacity-20 group-hover:scale-105 transition-transform duration-[4s]" alt="Banner" />
+            <img src={currentCampaign?.banner || ''} className="w-full h-full object-cover opacity-20 group-hover:scale-105 transition-transform duration-[4s]" alt="Banner" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-[#020617] via-[#020617]/70 to-transparent"></div>
         <div className="absolute top-6 right-6 md:top-10 md:right-10 z-20 flex items-center gap-3 bg-white/5 backdrop-blur-xl px-4 py-2 md:px-6 md:py-3 rounded-2xl border border-white/10 shadow-2xl animate-bounce" style={{ animationDuration: '4s' }}>
@@ -286,7 +289,7 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
            </div>
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 space-y-6 md:space-y-10">
-          <img src={currentCampaign?.logo || campaign?.logo || ''} className="w-16 h-16 md:w-32 md:h-32 object-contain drop-shadow-[0_0_30px_rgba(194,163,83,0.5)]" alt="Logo" />
+          <img src={currentCampaign?.logo || ''} className="w-16 h-16 md:w-32 md:h-32 object-contain drop-shadow-[0_0_30px_rgba(194,163,83,0.5)]" alt="Logo" />
           <div className="space-y-2">
             <h1 className="text-2xl md:text-6xl font-black tracking-tighter luxury-gradient bg-clip-text text-transparent italic leading-tight">
               {isHE ? currentCampaign?.nameHE || currentClient?.name : currentCampaign?.nameEN || currentClient?.name}
@@ -301,8 +304,8 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
             </div>
           </div>
           <div className="flex flex-col md:flex-row gap-4 items-center">
-            {(currentCampaign?.donationUrl || campaign?.donationUrl) && (
-              <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-10 py-3 md:px-16 md:py-4 luxury-gradient text-black font-black rounded-xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 active:scale-95 transition-all text-xs md:text-base uppercase tracking-tighter italic">
+            {currentCampaign?.donationUrl && (
+              <a href={currentCampaign.donationUrl} target="_blank" rel="noreferrer" className="px-10 py-3 md:px-16 md:py-4 luxury-gradient text-black font-black rounded-xl md:rounded-[1.5rem] shadow-2xl hover:scale-110 active:scale-95 transition-all text-xs md:text-base uppercase tracking-tighter italic">
                 {isHE ? 'להצטרפות להגרלה' : 'Join Auction Now'}
               </a>
             )}
@@ -337,9 +340,9 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
                     </div>
                     <div className="flex gap-5">
                         <PrizeShareButton activeClientId={activeClientId} prize={p} isHE={isHE} campaignName={currentCampaign?.nameHE || 'Mazalix'} className="w-16 h-16 md:w-24 md:h-24 rounded-[2rem]" iconSize={32} />
-                        {(currentCampaign?.donationUrl || campaign?.donationUrl) && (
+                        {currentCampaign?.donationUrl && (
                           <div className="flex flex-col gap-2">
-                            <a href={currentCampaign.donationUrl || campaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">{isHE ? 'להשתתפות עכשיו' : 'Enter Auction'}</a>
+                            <a href={currentCampaign.donationUrl} target="_blank" rel="noreferrer" className="px-12 md:px-20 h-16 md:h-24 luxury-gradient text-black font-black rounded-[2rem] flex items-center justify-center shadow-2xl hover:scale-105 active:scale-95 transition-all text-sm md:text-xl uppercase italic tracking-tighter">{isHE ? 'להשתתפות עכשיו' : 'Enter Auction'}</a>
                           </div>
                         )}
                     </div>
@@ -360,7 +363,7 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
               prize={p} 
               isHE={isHE} 
               campaignName={currentCampaign?.nameHE || 'Mazalix'} 
-              donationUrl={currentCampaign?.donationUrl || campaign?.donationUrl} 
+              donationUrl={currentCampaign?.donationUrl} 
               ticketCount={clientTickets.filter((t: any) => t.prizeId === p.id).length} 
             />
           ))}

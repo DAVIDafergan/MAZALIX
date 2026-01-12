@@ -46,13 +46,18 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const handleSaveCampaignSettings = async () => {
     setIsSavingCampaign(true);
     try {
-      // שליחת אובייקט הקמפיין הנוכחי לעדכון בשרת
-      await updateCampaign(campaign);
+      // עדכון מסד הנתונים דרך פונקציית ה-updateCampaign מה-store
+      // אנחנו שולחים את אובייקט הקמפיין הנוכחי כפי שהוא מעודכן בסטייט
+      await updateCampaign({
+        ...campaign,
+        clientId: auth.clientId // מוודא שזה נשמר תחת הלקוח הנכון
+      });
+      
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
     } catch (err) {
       console.error("Failed to save campaign:", err);
-      alert(isHE ? "שגיאה בשמירת הנתונים" : "Error saving data");
+      alert(isHE ? "שגיאה בשמירת הנתונים למסד" : "Error saving data to database");
     } finally {
       setIsSavingCampaign(false);
     }
