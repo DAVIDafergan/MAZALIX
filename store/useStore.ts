@@ -35,6 +35,7 @@ export function useStore() {
         const dbClients = await cRes.json();
         setClients(dbClients);
         
+        // שליפת הגדרות קמפיין מתוך אובייקט הלקוח המחובר
         if (auth.clientId && !auth.isSuperAdmin) {
           const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
           if (currentClient?.campaign) {
@@ -48,7 +49,7 @@ export function useStore() {
           ? data.filter((item: any) => item.clientId === auth.clientId)
           : data;
 
-      if (pRes.ok) setPrizes(filterByClient(await pRes.ok ? await pRes.json() : []).sort((a: any, b: any) => a.order - b.order));
+      if (pRes.ok) setPrizes(filterByClient(await pRes.json()).sort((a: any, b: any) => a.order - b.order));
       if (pkgRes.ok) setPackages(filterByClient(await pkgRes.json()));
       if (dRes.ok) setDonors(filterByClient(await dRes.json()));
       if (tRes.ok) setTickets(filterByClient(await tRes.json()));
@@ -62,7 +63,7 @@ export function useStore() {
     localStorage.setItem(`${LS_KEY}_auth`, JSON.stringify(auth));
   }, [auth]);
 
-  // פונקציית התחברות מתוקנת שפונה ל-Backend
+  // פונקציית התחברות מתוקנת שקולטת clientId מהשרת
   const login = async (username: string, pass: string) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -74,13 +75,14 @@ export function useStore() {
       const data = await response.json();
 
       if (data.success) {
-        // שמירת הטוקן ב-localStorage עבור בקשות API עתידיות (כמו מחיקה/הוספה)
+        // שמירת הטוקן עבור בקשות API מוגנות
         localStorage.setItem(`${LS_KEY}_admin_token`, data.token);
         
+        // עדכון ה-State עם ה-clientId שחזר מהשרת (מונע undefined)
         setAuth({ 
           isLoggedIn: true, 
-          isSuperAdmin: data.isSuperAdmin || (username === 'DA1234'), 
-          clientId: data.isSuperAdmin ? 'super' : 'unknown' 
+          isSuperAdmin: data.isSuperAdmin, 
+          clientId: data.clientId 
         });
         return true;
       }
@@ -88,7 +90,7 @@ export function useStore() {
       console.error("Login API error:", e);
     }
 
-    // Fallback למקרה של לקוחות רגילים שעדיין לא בשרת או שגיאה
+    // Fallback למקרה של לקוחות רגילים שעדיין לא בשרת (תאימות לאחור)
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
       setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: client.id });

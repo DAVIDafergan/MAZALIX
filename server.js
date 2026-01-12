@@ -46,17 +46,40 @@ const ADMIN_CREDENTIALS = {
   token: 'mazalix-admin-super-token-2026' // טוקן פשוט לזיהוי
 };
 
-// נתיב התחברות למנהל - מעודכן ל-auth/login כדי להתאים ל-Frontend
-app.post('/api/auth/login', (req, res) => {
+// נתיב התחברות משופר - מחזיר את ה-clientId האמיתי מהמסד
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
+
+  // 1. בדיקה אם זה מנהל על (Super Admin)
   if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-    res.json({ 
+    return res.json({ 
       success: true, 
       token: ADMIN_CREDENTIALS.token,
-      isSuperAdmin: true // מאפשר ל-App.tsx לזהות אותך כמנהל על
+      isSuperAdmin: true,
+      clientId: 'super' 
     });
-  } else {
-    res.status(401).json({ success: false, message: "פרטי התחברות שגויים" });
+  }
+
+  // 2. בדיקה במסד הנתונים עבור לקוח רגיל
+  try {
+    const client = await Client.findOne({ 
+      $or: [{ username: username }, { displayName: username }], 
+      password: password 
+    });
+
+    if (client) {
+      // מחזירים את ה-id האמיתי של הלקוח כדי שהלינק ב-Frontend לא יהיה undefined
+      res.json({ 
+        success: true, 
+        token: 'client-token-' + client.id, 
+        isSuperAdmin: false,
+        clientId: client.id 
+      });
+    } else {
+      res.status(401).json({ success: false, message: "פרטי התחברות שגויים" });
+    }
+  } catch (e) {
+    res.status(500).json({ success: false, message: "שגיאת שרת פנימית" });
   }
 });
 
