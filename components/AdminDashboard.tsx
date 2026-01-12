@@ -315,27 +315,34 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     }
   };
 
-  // תיקון קריטי: לוגיקת בחירת מתנה במסלול
+  // תיקון קריטי: לוגיקת בחירת מתנה במסלול - מאפשר ריבוי מתנות ללא הגבלה
   const handleTogglePrizeInPkg = (prizeId: string | 'ALL') => {
     if (!prizeId) return;
     setPkgForm(prev => {
       const currentRules = [...(prev.rules || [])];
-      // שימוש ב-String() מבטיח השוואה תקינה
       const existingIdx = currentRules.findIndex(r => String(r.prizeId) === String(prizeId));
       
+      let newRules;
       if (existingIdx > -1) {
-        return { ...prev, rules: currentRules.filter(r => String(r.prizeId) !== String(prizeId)) };
+        // אם המתנה כבר קיימת, נסיר אותה
+        newRules = currentRules.filter(r => String(r.prizeId) !== String(prizeId));
       } else {
-        return { ...prev, rules: [...currentRules, { prizeId: String(prizeId), count: 1 }] };
+        // אם לא קיימת, נוסיף אותה למערך
+        newRules = [...currentRules, { prizeId: String(prizeId), count: 1 }];
       }
+      return { ...prev, rules: newRules };
     });
   };
 
+  // תיקון קריטי: עדכון כמות כרטיסים לכל מתנה בנפרד
   const handleUpdateRuleCount = (prizeId: string | 'ALL', count: number) => {
-    setPkgForm(prev => ({
-      ...prev,
-      rules: (prev.rules || []).map(r => String(r.prizeId) === String(prizeId) ? { ...r, count: Math.max(1, count) } : r)
-    }));
+    setPkgForm(prev => {
+      const currentRules = prev.rules || [];
+      const updatedRules = currentRules.map(r => 
+        String(r.prizeId) === String(prizeId) ? { ...r, count: Math.max(1, count) } : r
+      );
+      return { ...prev, rules: updatedRules };
+    });
   };
 
   const handleEditPrize = (p: Prize) => {
@@ -756,7 +763,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       <span className="text-[7px] font-black uppercase mt-1">{isHE ? 'הכל' : 'ALL'}</span>
                     </div>
                     {clientPrizes.map((p: any) => {
-                      const isActive = pkgForm.rules?.some(r => String(r.prizeId) === String(p.id));
+                      const isActive = (pkgForm.rules || []).some(r => String(r.prizeId) === String(p.id));
                       return (
                         <div 
                           key={p.id}
