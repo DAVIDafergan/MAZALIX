@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Prize, Donor, Language, DrawStatus } from '../types';
@@ -19,8 +18,9 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   const [winner, setWinner] = useState<Donor | null>(null);
   const [randomName, setRandomName] = useState('');
   
-  const prize = prizes.find((p: Prize) => p.id === prizeId);
-  const prizeTickets = tickets.filter((t: any) => t.prizeId === prizeId);
+  // תיקון קריטי: המרת ה-ID למחרוזת לצורך השוואה תקינה
+  const prize = prizes.find((p: Prize) => String(p.id) === String(prizeId));
+  const prizeTickets = tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
   const participantIds = Array.from(new Set(prizeTickets.map((t: any) => t.donorId)));
   const participants = donors.filter((d: Donor) => participantIds.includes(d.id));
 
@@ -34,7 +34,7 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
 
   useEffect(() => {
     let interval: any;
-    if (isDrawing) {
+    if (isDrawing && participants.length > 0) {
       interval = setInterval(() => {
         const randIndex = Math.floor(Math.random() * participants.length);
         setRandomName(participants[randIndex]?.name || '...');
@@ -48,20 +48,21 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
     setIsDrawing(true);
     setWinner(null);
     setTimeout(() => {
+      // ביצוע ההגרלה ב-Store
       const winningDonor = performDraw(prizeId!);
       setIsDrawing(false);
       setWinner(winningDonor);
     }, 5000);
   };
 
-  if (!prize) return <div className="p-20 text-center font-black italic">Prize Not Found</div>;
+  if (!prize) return <div className="p-20 text-center font-black italic text-white bg-[#020617] min-h-screen">Prize Not Found</div>;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#020617] relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-tr from-[#C2A353]/10 to-transparent blur-[100px]"></div>
 
       <div className="relative z-10 w-full max-w-5xl space-y-10 flex flex-col items-center">
-        {!publicOnly && <button onClick={() => navigate('/admin')} className="absolute top-0 left-0 p-3 bg-white/5 rounded-full"><ArrowLeft size={20}/></button>}
+        {!publicOnly && <button onClick={() => navigate('/admin')} className="absolute top-0 left-0 p-3 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><ArrowLeft size={20}/></button>}
         
         <div className="text-center space-y-2">
           <p className="gold-text font-black uppercase tracking-[0.5em] text-xs italic">{isHE ? 'הגרלה חיה' : 'Live Draw'}</p>
@@ -69,12 +70,12 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full items-center">
-            <div className="glass-card p-6 rounded-[2.5rem] border border-white/10">
-               <div className="aspect-square rounded-2xl overflow-hidden relative">
-                  <img src={prize.media[0]?.url} className="w-full h-full object-cover" />
+            <div className="glass-card p-6 rounded-[2.5rem] border border-white/10 shadow-2xl">
+               <div className="aspect-square rounded-2xl overflow-hidden relative border border-white/5">
+                  <img src={prize.media[0]?.url} className="w-full h-full object-cover" alt="" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
-                  <div className="absolute bottom-6 left-6">
-                     <h3 className="text-2xl font-black italic text-white">{isHE ? prize.titleHE : prize.titleEN}</h3>
+                  <div className="absolute bottom-6 left-6 right-6">
+                     <h3 className="text-2xl font-black italic text-white truncate">{isHE ? prize.titleHE : prize.titleEN}</h3>
                      <p className="gold-text text-xl font-black italic">₪{prize.value.toLocaleString()}</p>
                   </div>
                </div>
@@ -89,19 +90,28 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
                 ) : winner ? (
                   <div className="space-y-6 animate-fade-in">
                     <Trophy size={80} className="gold-text mx-auto animate-bounce" />
-                    <h2 className="text-4xl md:text-6xl font-black italic luxury-gradient bg-clip-text text-transparent">{winner.name}</h2>
-                    <p className="text-gray-500 font-bold uppercase tracking-widest">{isHE ? 'הזוכה המאושר!' : 'The Lucky Winner!'}</p>
+                    <div className="space-y-2">
+                        <p className="text-white/40 text-[10px] font-black uppercase tracking-[0.3em]">{isHE ? 'הזוכה הוא' : 'THE WINNER IS'}</p>
+                        <h2 className="text-4xl md:text-6xl font-black italic luxury-gradient bg-clip-text text-transparent drop-shadow-2xl">{winner.name}</h2>
+                    </div>
+                    <p className="text-gray-500 font-bold uppercase tracking-widest">{isHE ? 'ברכות לזוכה המאושר!' : 'Congratulations!'}</p>
                   </div>
                 ) : (
                   <div className="space-y-8">
                     <div className="space-y-2">
-                       <p className="text-gray-500 font-black uppercase text-xs tracking-widest">{isHE ? 'משתתפים' : 'Entries'}</p>
+                       <p className="text-gray-500 font-black uppercase text-xs tracking-widest">{isHE ? 'כרטיסים בהגרלה' : 'Total Entries'}</p>
                        <p className="text-6xl font-black gold-text italic">{prizeTickets.length}</p>
                     </div>
                     {publicOnly ? (
-                      <p className="text-gray-400 font-bold italic animate-pulse">Waiting for Admin...</p>
+                      <p className="text-gray-400 font-bold italic animate-pulse">{isHE ? 'ממתין למנהל המערכת...' : 'Waiting for Admin...'}</p>
                     ) : (
-                      <button onClick={handleStartDraw} className="px-12 py-5 luxury-gradient text-black text-xl font-black rounded-2xl shadow-xl uppercase italic">Start Draw</button>
+                      <button 
+                        onClick={handleStartDraw} 
+                        disabled={prizeTickets.length === 0}
+                        className="px-12 py-5 luxury-gradient text-black text-xl font-black rounded-2xl shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all uppercase italic disabled:opacity-50 disabled:grayscale"
+                      >
+                        {isHE ? 'הפעל הגרלה' : 'Start Draw'}
+                      </button>
                     )}
                   </div>
                 )}
