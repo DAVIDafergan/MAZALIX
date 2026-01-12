@@ -79,7 +79,10 @@ function PrizeCard({ activeClientId, prize, isHE, campaignName, donationUrl, tic
 
 // --- הרכיב הראשי Catalog ---
 const Catalog: React.FC<{ store: any }> = ({ store }) => {
-  const { prizes = [], packages = [], lang, campaign, tickets = [], clients = [], auth } = store;
+  // הגנה ראשונית: אם ה-Store לא קיים, לא נבצע הרצה של הלוגיקה
+  if (!store) return null;
+
+  const { prizes = [], packages = [], lang, campaign = {}, tickets = [], clients = [], auth = {} } = store;
   const { clientId } = useParams<{ clientId: string }>(); 
   const navigate = useNavigate();
   const isHE = lang === Language.HE;
@@ -90,9 +93,9 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
   // --- לוגיקה לזיהוי איזה קטלוג להציג ---
   const activeClientId = useMemo(() => {
     return clientId || (auth?.isLoggedIn && !auth?.isSuperAdmin ? auth.clientId : null);
-  }, [clientId, auth]);
+  }, [clientId, auth.isLoggedIn, auth.isSuperAdmin, auth.clientId]);
 
-  const isPublicHome = !activeClientId && !auth?.isLoggedIn;
+  const isPublicHome = !clientId && (!auth?.isLoggedIn || auth?.isSuperAdmin);
 
   // סינון נתונים עם הגנה למקרה שהנתונים אינם מערך
   const clientPrizes = useMemo(() => {
