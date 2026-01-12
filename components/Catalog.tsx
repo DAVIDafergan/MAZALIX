@@ -21,6 +21,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
   const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : packages;
   const clientTickets = activeClientId ? tickets.filter((t: any) => t.clientId === activeClientId) : tickets;
   
+  // כאן אנחנו מוודאים שאנחנו לוקחים את הקמפיין הספציפי של הלקוח מתוך מערך הלקוחות
   const currentClient = activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
   const currentCampaign = currentClient?.campaign || campaign;
 
@@ -55,15 +56,14 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
     return () => clearInterval(interval);
   }, [featuredPrizes.length]);
 
-  // --- תיקון סופי ומוחלט למנגנון השיתוף שיעבוד ב-Railway ---
+  // --- מנגנון שיתוף דינמי עם מזהה הקמפיין הייחודי ---
   const handleShareCatalog = async (idFromCard?: string) => {
-    // מזהה הלקוח: אם לחצו על כרטיס בדף הבית נשתמש ב-ID שלו, אחרת בלקוח האקטיבי
     const idToShare = idFromCard || activeClientId;
     
-    // בניית הלינק המדויק ל-Railway עם ה-HashRouter
+    // בניית הלינק בצורה דינמית לפי הכתובת הנוכחית (עובד ב-Local וב-Railway)
     const shareUrl = idToShare 
-      ? `https://mazalix-production.up.railway.app/#/catalog/${idToShare}`
-      : `https://mazalix-production.up.railway.app/`;
+      ? `${window.location.origin}/#/catalog/${idToShare}`
+      : `${window.location.origin}/`;
     
     const shareData = {
       title: isHE ? currentCampaign.nameHE || 'Mazalix' : currentCampaign.nameEN || 'Mazalix',
@@ -76,11 +76,10 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(shareUrl);
-        alert(isHE ? 'הקישור לקטלוג הועתק בהצלחה!' : 'Catalog link copied successfully!');
+        alert(isHE ? 'הקישור הייחודי לקטלוג הועתק!' : 'Unique catalog link copied!');
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        console.error('Share failed:', err);
         navigator.clipboard.writeText(shareUrl);
         alert(isHE ? 'הקישור הועתק ללוח' : 'Link copied to clipboard');
       }
@@ -394,8 +393,8 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 const PrizeShareButton: React.FC<{ activeClientId: any; prize: Prize; isHE: boolean; campaignName: string; className?: string; iconSize?: number }> = ({ activeClientId, prize, isHE, campaignName, className, iconSize = 12 }) => {
   const handleSharePrize = async (e: React.MouseEvent) => {
     e.preventDefault();
-    // יצירת לינק קשיח המתאים למבנה האתר ב-Railway
-    const shareUrl = `https://mazalix-production.up.railway.app/#/catalog/${activeClientId}`;
+    // יצירת לינק דינמי לסביבה (Railway/Local) הכולל את מזהה הקמפיין הייחודי
+    const shareUrl = `${window.location.origin}/#/catalog/${activeClientId}`;
     
     const shareData = { title: campaignName, text: isHE ? `ראו איזה פרס מדהים ב-${campaignName}!` : `Incredible prize at ${campaignName}!`, url: shareUrl };
     try {
