@@ -11,33 +11,36 @@ const app = express();
 app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
+// חיבור למסד הנתונים ב-Railway
 const MONGO_URI = "mongodb://mongo:fuXtLUJfejdmyazKTgClwAytHgRwLUEV@mongodb.railway.internal:27017";
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ Connected to MongoDB Successfully'))
   .catch(err => console.error('❌ Connection error:', err));
 
-// סכמות גמישות
+// סכמות גמישות (strict: false מאפשר להוסיף שדות כמו campaign בקלות)
 const Client = mongoose.model('Client', new mongoose.Schema({}, { strict: false }));
 const Donor = mongoose.model('Donor', new mongoose.Schema({}, { strict: false }));
 const Prize = mongoose.model('Prize', new mongoose.Schema({}, { strict: false }));
 const Package = mongoose.model('Package', new mongoose.Schema({}, { strict: false }));
+const Ticket = mongoose.model('Ticket', new mongoose.Schema({}, { strict: false }));
 
 const getModel = (name) => {
   if (name === 'clients') return Client;
   if (name === 'prizes') return Prize;
   if (name === 'donors') return Donor;
   if (name === 'packages') return Package;
+  if (name === 'tickets') return Ticket;
   return null;
 };
 
-// --- נתיב קריטי: עדכון הגדרות קמפיין בתוך טבלת Clients ---
+// --- עדכון הגדרות קמפיין בתוך טבלת Clients ---
 app.put('/api/clients/:id/campaign', async (req, res) => {
   try {
     const { id } = req.params;
     const { campaign } = req.body;
     
-    // מעדכן את הלקוח הקיים ומוסיף/מעדכן לו את שדה ה-campaign
+    // מציאת הלקוח לפי השדה id (ה-String שנוצר ב-Frontend) ועדכון שדה ה-campaign
     const updatedClient = await Client.findOneAndUpdate(
       { id: id }, 
       { $set: { campaign: campaign } },
@@ -45,10 +48,8 @@ app.put('/api/clients/:id/campaign', async (req, res) => {
     );
     
     if (!updatedClient) return res.status(404).send({ message: "Client not found" });
-    console.log(`✅ Campaign settings saved for client ${id}`);
     res.send(updatedClient);
   } catch (e) {
-    console.error("❌ Error updating campaign:", e);
     res.status(500).send(e);
   }
 });

@@ -21,21 +21,22 @@ export function useStore() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
   // --- פונקציה מרכזית לטעינת נתונים מבודדת ---
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     try {
       const [cRes, pRes, pkgRes, dRes, tRes] = await Promise.all([
         fetch(`${API_URL}/api/clients`),
         fetch(`${API_URL}/api/prizes`),
         fetch(`${API_URL}/api/packages`),
         fetch(`${API_URL}/api/donors`),
-        fetch(`${API_URL}/api/tickets`) // הוספת טעינת כרטיסים מהמסד
+        fetch(`${API_URL}/api/tickets`)
       ]);
       
+      let dbClients: Client[] = [];
       if (cRes.ok) {
-        const dbClients = await cRes.json();
+        dbClients = await cRes.json();
         setClients(dbClients);
         
-        // טעינת הגדרות קמפיין ספציפיות למנהל המחובר
+        // טעינה מיידית של הגדרות קמפיין מהלקוח שנמצא במסד
         if (auth.clientId && !auth.isSuperAdmin) {
           const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
           if (currentClient?.campaign) {
@@ -44,45 +45,54 @@ export function useStore() {
         }
       }
       
-      // סינון נתונים: אם מנהל מחובר - רואה רק שלו. אם SuperAdmin - רואה הכל.
+      // פונקציית סינון פנימית להבטחת בידוד נתונים
       const filterByClient = (data: any[]) => 
         auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin 
           ? data.filter((item: any) => item.clientId === auth.clientId)
           : data;
 
-      if (pRes.ok) setPrizes(filterByClient(await pRes.json()).sort((a: any, b: any) => a.order - b.order));
-      if (pkgRes.ok) setPackages(filterByClient(await pkgRes.json()));
-      if (dRes.ok) setDonors(filterByClient(await dRes.json()));
-      if (tRes.ok) setTickets(filterByClient(await tRes.json()));
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        setPrizes(filterByClient(pData).sort((a: any, b: any) => a.order - b.order));
+      }
+      if (pkgRes.ok) {
+        const pkgData = await pkgRes.json();
+        setPackages(filterByClient(pkgData));
+      }
+      if (dRes.ok) {
+        const dData = await dRes.json();
+        setDonors(filterByClient(dData));
+      }
+      if (tRes.ok) {
+        const tData = await tRes.json();
+        setTickets(filterByClient(tData));
+      }
 
     } catch (e) {
       console.error("טעינה מהמסד נכשלה", e);
     }
-  };
-
-  // טעינה ראשונית וסינכרון בזמן שינוי זהות משתמש
-  useEffect(() => {
-    fetchAllData();
   }, [auth.clientId, auth.isSuperAdmin, auth.isLoggedIn]);
 
-  // שמירת ה-Auth בלבד ב-LocalStorage
+  // טעינה מחדש בכל פעם שהסטטוס של המשתמש משתנה
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
+  // שמירת ה-Auth ב-LocalStorage לסשן רציף
   useEffect(() => {
     localStorage.setItem(`${LS_KEY}_auth`, JSON.stringify(auth));
   }, [auth]);
 
   const login = (username: string, pass: string) => {
-    // מנהל על
     if (username === 'DA1234' && pass === 'DA1234') {
       const newAuth = { isLoggedIn: true, isSuperAdmin: true, clientId: 'super' };
       setAuth(newAuth);
       return true;
     }
-    // דמו
     if (username === 'demo' && pass === 'demo') {
         setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: 'demo-client' });
         return true;
     }
-    // לקוחות רגילים
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
       const newAuth = { isLoggedIn: true, isSuperAdmin: false, clientId: client.id };
@@ -137,7 +147,6 @@ export function useStore() {
           body: JSON.stringify({ campaign: newCampaign })
         });
         if (res.ok) {
-          // עדכון מקומי של רשימת הלקוחות כדי שהקטלוג יתעדכן מיידית
           setClients(prev => prev.map(c => c.id === auth.clientId ? { ...c, campaign: newCampaign } : c));
         }
       } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
@@ -207,16 +216,19 @@ export function useStore() {
     } catch (e) { console.error(e); }
   };
 
-  // --- פונקציה לשמירת כרטיסים למסד הנתונים ---
+  // שמירת כרטיסים בצורה מקבילית לשיפור ביצועים ומניעת אובדן נתונים
   const saveTicketsToDb = async (newTickets: Ticket[]) => {
-    for (const ticket of newTickets) {
-      try {
-        await fetch(`${API_URL}/api/tickets`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...ticket, clientId: auth.clientId })
-        });
-      } catch (e) { console.error("שגיאה בשמירת כרטיס", e); }
+    const promises = newTickets.map(ticket => 
+      fetch(`${API_URL}/api/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...ticket, clientId: auth.clientId })
+      })
+    );
+    try {
+      await Promise.all(promises);
+    } catch (e) {
+      console.error("שגיאה בשמירת כרטיסים", e);
     }
   };
 
@@ -260,20 +272,15 @@ export function useStore() {
     if (!pkg) return;
 
     try {
-      // 1. עדכון התורם במסד
       await fetch(`${API_URL}/api/donors/${donorId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageId })
       });
       
-      // 2. מחיקת כרטיסים ישנים של התורם (במידה ויש)
       const oldTickets = tickets.filter(t => t.donorId === donorId);
-      for (const t of oldTickets) {
-        await fetch(`${API_URL}/api/tickets/${t.id}`, { method: 'DELETE' });
-      }
+      await Promise.all(oldTickets.map(t => fetch(`${API_URL}/api/tickets/${t.id}`, { method: 'DELETE' })));
 
-      // 3. יצירת כרטיסים חדשים
       const newTickets: Ticket[] = [];
       pkg.rules.forEach(rule => {
         const targetPrizeIds = rule.prizeId === 'ALL' ? prizes.map(p => p.id) : [rule.prizeId];
