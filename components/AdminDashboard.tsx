@@ -761,10 +761,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     {pkgForm.rules.map(r => (
                       <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
                         <span className="text-[9px] font-bold truncate max-w-[120px]">
-                          {r.prizeId === 'ALL' ? (isHE ? 'הכל' : 'ALL') : (isHE ? clientPrizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
+                          {r.prizeId === 'ALL' ? (isHE ? 'כל הפרסים' : 'ALL PRIZES') : (isHE ? clientPrizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <input type="number" className="w-10 bg-black/40 border border-white/10 p-1 rounded text-[10px] text-center font-black outline-none" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
+                          <label className="text-[7px] text-gray-500 font-bold">{isHE ? 'כמות כרטיסים:' : 'TIX:'}</label>
+                          <input type="number" className="w-10 bg-black/40 border border-white/10 p-1 rounded text-[10px] text-center font-black outline-none text-[#C2A353]" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
                         </div>
                       </div>
                     ))}
