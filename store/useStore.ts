@@ -23,12 +23,13 @@ export function useStore() {
   // טעינה מבודדת של נתונים מהמסד
   const fetchAllData = useCallback(async () => {
     try {
-      const [cRes, pRes, pkgRes, dRes, tRes] = await Promise.all([
+      const [cRes, pRes, pkgRes, dRes, tRes, sRes] = await Promise.all([
         fetch(`${API_URL}/api/clients`),
         fetch(`${API_URL}/api/prizes`),
         fetch(`${API_URL}/api/packages`),
         fetch(`${API_URL}/api/donors`),
-        fetch(`${API_URL}/api/tickets`)
+        fetch(`${API_URL}/api/tickets`),
+        fetch(`${API_URL}/api/settings`) // שאיבת הגדרות מהטבלה החדשה
       ]);
       
       if (cRes.ok) {
@@ -41,6 +42,14 @@ export function useStore() {
           if (currentClient?.campaign) {
             setCampaign(currentClient.campaign);
           }
+        }
+      }
+
+      // אם המשתמש הוא מנהל על, נטען את ההגדרות הגלובליות מהמסד
+      if (auth.isSuperAdmin && sRes.ok) {
+        const globalSettings = await sRes.json();
+        if (Array.isArray(globalSettings) && globalSettings.length > 0) {
+          setCampaign(globalSettings[0]); // ההגדרה הראשונה במסד היא הקובעת
         }
       }
       
@@ -140,7 +149,19 @@ export function useStore() {
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
-    if (auth.clientId && !auth.isSuperAdmin) {
+
+    // לוגיקת שמירה גמישה - לפי סוג המשתמש
+    if (auth.isSuperAdmin) {
+      // שמירה גלובלית בטבלת settings
+      try {
+        await fetch(`${API_URL}/api/settings/global`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newCampaign)
+        });
+      } catch (e) { console.error("❌ שגיאה בשמירת הגדרות גלובליות:", e); }
+    } else if (auth.clientId) {
+      // שמירה ספציפית ללקוח בטבלת clients
       try {
         await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
           method: 'PUT',

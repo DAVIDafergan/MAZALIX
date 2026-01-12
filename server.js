@@ -28,6 +28,8 @@ const Donor = mongoose.model('Donor', new mongoose.Schema({}, { strict: false })
 const Prize = mongoose.model('Prize', new mongoose.Schema({}, { strict: false }));
 const Package = mongoose.model('Package', new mongoose.Schema({}, { strict: false }));
 const Ticket = mongoose.model('Ticket', new mongoose.Schema({}, { strict: false }));
+// טבלה חדשה להגדרות קמפיין כלליות (Platform Settings)
+const Setting = mongoose.model('Setting', new mongoose.Schema({}, { strict: false }));
 
 const getModel = (name) => {
   if (name === 'clients') return Client;
@@ -35,6 +37,7 @@ const getModel = (name) => {
   if (name === 'donors') return Donor;
   if (name === 'packages') return Package;
   if (name === 'tickets') return Ticket;
+  if (name === 'settings') return Setting;
   return null;
 };
 
@@ -94,6 +97,20 @@ const requireAdmin = (req, res, next) => {
 };
 
 // --- API ROUTES ---
+
+// נתיב מיוחד לעדכון הגדרות פלטפורמה גלובליות (עבור מנהל על)
+app.put('/api/settings/global', async (req, res) => {
+  try {
+    const updatedSetting = await Setting.findOneAndUpdate(
+      {}, // פילטר ריק מוצא את המסמך הראשון (יש רק אחד כזה)
+      { $set: req.body },
+      { upsert: true, new: true } // יוצר אם לא קיים
+    );
+    res.send(updatedSetting);
+  } catch (e) {
+    res.status(500).send(e);
+  }
+});
 
 // עדכון הגדרות קמפיין בתוך טבלת Clients
 app.put('/api/clients/:id/campaign', async (req, res) => {
