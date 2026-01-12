@@ -112,21 +112,23 @@ app.put('/api/settings/global', async (req, res) => {
   }
 });
 
-// עדכון הגדרות קמפיין בתוך טבלת Clients
+// עדכון הגדרות קמפיין בתוך טבלת Clients - תיקון לוגי לשמירה יציבה
 app.put('/api/clients/:id/campaign', async (req, res) => {
   try {
     const { id } = req.params;
     const { campaign } = req.body;
     
+    // מוודא שאנחנו מחפשים לפי השדה 'id' שנוצר ב-Frontend ולא ה-_id הפנימי
     const updatedClient = await Client.findOneAndUpdate(
       { id: id }, 
       { $set: { campaign: campaign } },
-      { new: true }
+      { new: true, strict: false }
     );
     
-    if (!updatedClient) return res.status(404).send({ message: "Client not found" });
+    if (!updatedClient) return res.status(404).send({ message: "Client not found in database" });
     res.send(updatedClient);
   } catch (e) {
+    console.error("Database Update Error:", e);
     res.status(500).send(e);
   }
 });

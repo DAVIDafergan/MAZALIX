@@ -46,11 +46,12 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const handleSaveCampaignSettings = async () => {
     setIsSavingCampaign(true);
     try {
-      // עדכון מסד הנתונים דרך פונקציית ה-updateCampaign מה-store
-      // אנחנו שולחים את אובייקט הקמפיין הנוכחי כפי שהוא מעודכן בסטייט
+      // שליחת אובייקט הקמפיין המעודכן לסטור שמעדכן את ה-DB
+      // אנו מוודאים שמעבירים את ה-clientId כדי שהקטלוג ידע לשייך את הנתונים
       await updateCampaign({
         ...campaign,
-        clientId: auth.clientId // מוודא שזה נשמר תחת הלקוח הנכון
+        id: auth.clientId,
+        clientId: auth.clientId 
       });
       
       setShowSaveSuccess(true);
