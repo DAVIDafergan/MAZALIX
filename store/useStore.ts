@@ -1,79 +1,97 @@
-
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Prize, Package, Donor, Ticket, Language, DrawStatus, CampaignSettings, Client, UserAuth } from '../types';
 import { INITIAL_PRIZES, INITIAL_PACKAGES, INITIAL_CAMPAIGN } from '../constants';
 
-const API_BASE = '/api';
+const LS_KEY = 'mazalix_v1';
+// הכתובת המעודכנת של השרת שלך ב-Railway
+const API_URL = "https://mazalix-production.up.railway.app"; 
 
 export function useStore() {
   const [lang, setLang] = useState<Language>(Language.HE);
   const [auth, setAuth] = useState<UserAuth>(() => {
-    const saved = localStorage.getItem('mazalix_auth');
+    const saved = localStorage.getItem(`${LS_KEY}_auth`);
     return saved ? JSON.parse(saved) : { isLoggedIn: false, isSuperAdmin: false };
   });
 
   const [clients, setClients] = useState<Client[]>([]);
   const [campaign, setCampaign] = useState<CampaignSettings>(INITIAL_CAMPAIGN);
-  const [prizes, setPrizes] = useState<Prize[]>(INITIAL_PRIZES);
-  const [packages, setPackages] = useState<Package[]>(INITIAL_PACKAGES);
+  const [prizes, setPrizes] = useState<Prize[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
   const [donors, setDonors] = useState<Donor[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
 
-  const loadClientData = useCallback(async (clientId: string) => {
+  // טעינה מבודדת של נתונים מהמסד
+  const fetchAllData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/data/${clientId}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.campaign) setCampaign(data.campaign);
-      setPrizes(data.prizes || []);
-      setPackages(data.packages || []);
-      setDonors(data.donors || []);
-      setTickets(data.tickets || []);
-    } catch (err) {
-      console.error('Failed to load data:', err);
-    }
-  }, []);
-
-  const searchDonorCampaigns = async (phone: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/donors/search/${phone}`);
-      if (res.ok) {
-        return await res.json();
+      const [cRes, pRes, pkgRes, dRes, tRes] = await Promise.all([
+        fetch(`${API_URL}/api/clients`),
+        fetch(`${API_URL}/api/prizes`),
+        fetch(`${API_URL}/api/packages`),
+        fetch(`${API_URL}/api/donors`),
+        fetch(`${API_URL}/api/tickets`)
+      ]);
+      
+      if (cRes.ok) {
+        const dbClients = await cRes.json();
+        setClients(dbClients);
+        
+        if (auth.clientId && !auth.isSuperAdmin) {
+          const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
+          if (currentClient?.campaign) {
+            setCampaign(currentClient.campaign);
+          }
+        }
       }
-      return [];
-    } catch (err) {
-      console.error('Search error:', err);
-      return [];
-    }
-  };
+      
+      const filterByClient = (data: any[]) => 
+        auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin 
+          ? data.filter((item: any) => item.clientId === auth.clientId)
+          : data;
 
-  const fetchClients = useCallback(async () => {
-    if (!auth.isSuperAdmin) return;
-    const res = await fetch(`${API_BASE}/clients`);
-    const data = await res.json();
-    setClients(data);
-  }, [auth.isSuperAdmin]);
+      if (pRes.ok) setPrizes(filterByClient(await pRes.ok ? await pRes.json() : []).sort((a: any, b: any) => a.order - b.order));
+      if (pkgRes.ok) setPackages(filterByClient(await pkgRes.json()));
+      if (dRes.ok) setDonors(filterByClient(await dRes.json()));
+      if (tRes.ok) setTickets(filterByClient(await tRes.json()));
+
+    } catch (e) { console.error("טעינה מהמסד נכשלה", e); }
+  }, [auth.clientId, auth.isSuperAdmin, auth.isLoggedIn]);
+
+  useEffect(() => { fetchAllData(); }, [fetchAllData]);
 
   useEffect(() => {
-    if (auth.isLoggedIn && auth.clientId) {
-      if (auth.isSuperAdmin) {
-        fetchClients();
-      } else {
-        loadClientData(auth.clientId);
-      }
-    }
-    localStorage.setItem('mazalix_auth', JSON.stringify(auth));
-  }, [auth, loadClientData, fetchClients]);
+    localStorage.setItem(`${LS_KEY}_auth`, JSON.stringify(auth));
+  }, [auth]);
 
+  // פונקציית התחברות מתוקנת שפונה ל-Backend
   const login = async (username: string, pass: string) => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: pass })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setAuth(data);
+    try {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password: pass })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // שמירת הטוקן ב-localStorage עבור בקשות API עתידיות (כמו מחיקה/הוספה)
+        localStorage.setItem(`${LS_KEY}_admin_token`, data.token);
+        
+        setAuth({ 
+          isLoggedIn: true, 
+          isSuperAdmin: data.isSuperAdmin || (username === 'DA1234'), 
+          clientId: data.isSuperAdmin ? 'super' : 'unknown' 
+        });
+        return true;
+      }
+    } catch (e) {
+      console.error("Login API error:", e);
+    }
+
+    // Fallback למקרה של לקוחות רגילים שעדיין לא בשרת או שגיאה
+    const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
+    if (client) {
+      setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: client.id });
       return true;
     }
     return false;
@@ -81,138 +99,163 @@ export function useStore() {
 
   const logout = () => {
     setAuth({ isLoggedIn: false, isSuperAdmin: false });
-    setCampaign(INITIAL_CAMPAIGN);
-    setPrizes([]);
-    setPackages([]);
-    setDonors([]);
-    setTickets([]);
+    resetData();
+    localStorage.removeItem(`${LS_KEY}_auth`);
+    localStorage.removeItem(`${LS_KEY}_admin_token`);
   };
 
-  const addClient = async (displayName: string, user: string, pass: string) => {
-    const res = await fetch(`${API_BASE}/clients`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName, username: user, password: pass })
-    });
-    if (res.ok) fetchClients();
+  const addClient = async (displayName: string, user: string, pass: string, phone?: string, email?: string) => {
+    const newId = Math.random().toString(36).substr(2, 9);
+    const newClient: Client = {
+      id: newId,
+      username: user,
+      password: pass,
+      displayName,
+      createdAt: Date.now(),
+      isActive: true,
+      phone,
+      email,
+      campaign: INITIAL_CAMPAIGN
+    };
+    try {
+      const token = localStorage.getItem(`${LS_KEY}_admin_token`);
+      await fetch(`${API_URL}/api/clients`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-token': token || '' 
+        },
+        body: JSON.stringify(newClient)
+      });
+      setClients(prev => [...prev, newClient]);
+    } catch (e) { console.error(e); }
   };
 
-  const updateClientStatus = async (id: string, isActive: boolean) => {
-    const res = await fetch(`${API_BASE}/clients/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isActive })
-    });
-    if (res.ok) fetchClients();
-  };
-
-  const deleteClient = async (id: string) => {
-    const res = await fetch(`${API_BASE}/clients/${id}`, { method: 'DELETE' });
-    if (res.ok) fetchClients();
+  const toggleLanguage = () => {
+    setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
     if (auth.clientId && !auth.isSuperAdmin) {
-      await fetch(`${API_BASE}/clients/${auth.clientId}/campaign`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCampaign)
-      });
+      try {
+        await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaign: newCampaign })
+        });
+        setClients(prev => prev.map(c => c.id === auth.clientId ? { ...c, campaign: newCampaign } : c));
+      } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }
   };
 
   const addPrize = async (prize: Prize) => {
-    const res = await fetch(`${API_BASE}/prizes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...prize, clientId: auth.clientId })
-    });
-    if (res.ok) loadClientData(auth.clientId!);
-  };
-
-  const updatePrize = async (id: string, updates: Partial<Prize>) => {
-    const res = await fetch(`${API_BASE}/prizes/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates)
-    });
-    if (res.ok) loadClientData(auth.clientId!);
+    const prizeWithClient = { ...prize, clientId: auth.clientId };
+    try {
+      const res = await fetch(`${API_URL}/api/prizes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prizeWithClient)
+      });
+      const saved = await res.json();
+      setPrizes(prev => [...prev, saved].sort((a, b) => a.order - b.order));
+    } catch (e) { console.error(e); }
   };
 
   const deletePrize = async (id: string) => {
-    const res = await fetch(`${API_BASE}/prizes/${id}`, { method: 'DELETE' });
-    if (res.ok) loadClientData(auth.clientId!);
+    try {
+      await fetch(`${API_URL}/api/prizes/${id}`, { method: 'DELETE' });
+      setPrizes(prev => prev.filter(p => p.id !== id));
+    } catch (e) { console.error(e); }
+  };
+
+  const updatePrize = async (id: string, updates: Partial<Prize>) => {
+    try {
+      await fetch(`${API_URL}/api/prizes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
+    } catch (e) { console.error(e); }
   };
 
   const addPackage = async (pkg: Package) => {
-    const res = await fetch(`${API_BASE}/packages`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...pkg, clientId: auth.clientId })
-    });
-    if (res.ok) loadClientData(auth.clientId!);
+    const pkgWithClient = { ...pkg, clientId: auth.clientId };
+    try {
+      const res = await fetch(`${API_URL}/api/packages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pkgWithClient)
+      });
+      const saved = await res.json();
+      setPackages(prev => [...prev, saved]);
+    } catch (e) { console.error(e); }
   };
 
   const deletePackage = async (id: string) => {
-    await fetch(`${API_BASE}/packages/${id}`, { method: 'DELETE' });
-    loadClientData(auth.clientId!);
-  };
-
-  const performDraw = (prizeId: string) => {
-    const prizeTickets = tickets.filter(t => t.prizeId === prizeId);
-    if (prizeTickets.length === 0) return null;
-    const winningTicket = prizeTickets[Math.floor(Math.random() * prizeTickets.length)];
-    const winner = donors.find(d => d._id === winningTicket.donorId || d.id === winningTicket.donorId);
-    
-    if (winningTicket.donorId) {
-      updatePrize(prizeId, { status: DrawStatus.DRAWN, winnerId: winningTicket.donorId });
-    }
-    
-    return winner || null;
+    try { await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); } catch (e) { console.error(e); }
+    setPackages(prev => prev.filter(p => p.id !== id));
   };
 
   const addDonor = async (donor: Donor) => {
-    const sortedPkgs = [...packages].sort((a, b) => b.minAmount - a.minAmount);
-    const matched = sortedPkgs.find(p => donor.totalDonated >= p.minAmount);
-    
-    let generatedTickets: any[] = [];
-    if (matched) {
-      matched.rules.forEach(rule => {
-        if (rule.prizeId === 'ALL') {
-          prizes.forEach(p => {
-            for (let i = 0; i < rule.count; i++) generatedTickets.push({ prizeId: p._id || p.id });
-          });
-        } else {
-          for (let i = 0; i < rule.count; i++) generatedTickets.push({ prizeId: rule.prizeId });
-        }
+    const matched = [...packages].sort((a, b) => b.minAmount - a.minAmount).find(p => donor.totalDonated >= p.minAmount);
+    const donorWithPkg = { ...donor, packageId: matched?.id, clientId: auth.clientId };
+    try {
+      const res = await fetch(`${API_URL}/api/donors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(donorWithPkg)
       });
-    }
-
-    const res = await fetch(`${API_BASE}/donors`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientId: auth.clientId,
-        donor: { ...donor, packageId: matched?._id || matched?.id },
-        tickets: generatedTickets
-      })
-    });
-    if (res.ok) loadClientData(auth.clientId!);
+      const saved = await res.json();
+      setDonors(prev => [...prev, saved]);
+      if (matched) {
+        const newTix: Ticket[] = [];
+        matched.rules.forEach(rule => {
+          const ids = rule.prizeId === 'ALL' ? prizes.map(p => p.id) : [rule.prizeId];
+          ids.forEach(pId => {
+            for (let i = 0; i < rule.count; i++) {
+              newTix.push({ id: Math.random().toString(36).substr(2, 9), donorId: saved.id, prizeId: pId, createdAt: Date.now(), clientId: auth.clientId });
+            }
+          });
+        });
+        for (const t of newTix) {
+          await fetch(`${API_URL}/api/tickets`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t) });
+        }
+        setTickets(prev => [...prev, ...newTix]);
+      }
+    } catch (e) { console.error(e); }
   };
 
-  return {
-    lang, toggleLanguage: () => setLang(l => l === Language.HE ? Language.EN : Language.HE),
-    auth, login, logout, clients, addClient, updateClientStatus, deleteClient, campaign, updateCampaign,
-    prizes, packages, donors, tickets, addPrize, deletePrize, updatePrize, addPackage,
-    deletePackage, updatePackage: (id: string, u: any) => {}, 
-    addDonor, triggerSave: () => {},
-    loadClientData, searchDonorCampaigns,
-    performDraw,
-    setImpersonation: (clientId: string | undefined) => {
-       setAuth(prev => ({ ...prev, clientId: clientId || 'super' }));
-       if (clientId) loadClientData(clientId);
+  const assignPackageToDonor = async (donorId: string, packageId: string) => {
+    const pkg = packages.find(p => p.id === packageId);
+    if (!pkg) return;
+    try {
+      await fetch(`${API_URL}/api/donors/${donorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId }) });
+      setDonors(prev => prev.map(d => d.id === donorId ? { ...d, packageId } : d));
+      fetchAllData(); 
+    } catch (e) { console.error(e); }
+  };
+
+  const performDraw = async (prizeId: string) => {
+    const prizeTickets = tickets.filter(t => t.prizeId === prizeId);
+    if (prizeTickets.length === 0) return null;
+    const winner = donors.find(d => d.id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId);
+    if (winner) {
+      await updatePrize(prizeId, { status: DrawStatus.DRAWN, winnerId: winner.id });
+      return winner;
     }
+    return null;
+  };
+
+  const resetData = () => {
+    setPrizes([]); setPackages([]); setCampaign(INITIAL_CAMPAIGN); setDonors([]); setTickets([]);
+  };
+
+  const unmappedDonors = useMemo(() => donors.filter(d => !d.packageId), [donors]);
+
+  return {
+    lang, toggleLanguage, auth, login, logout, clients, addClient, campaign, updateCampaign, prizes, packages, donors, tickets, addPrize, deletePrize, updatePrize, addPackage, deletePackage, addDonor, performDraw, resetData, unmappedDonors, assignPackageToDonor
   };
 }
