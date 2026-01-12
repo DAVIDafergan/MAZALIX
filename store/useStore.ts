@@ -146,8 +146,8 @@ export function useStore() {
     setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
+  // פונקציית עדכון קמפיין משופרת
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
-    // עדכון מקומי מהיר לשיפור חווית המשתמש
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
 
@@ -161,15 +161,15 @@ export function useStore() {
       } catch (e) { console.error("❌ שגיאה בשמירת הגדרות גלובליות:", e); }
     } else if (auth.clientId) {
       try {
-        const response = await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
+        const res = await fetch(`${API_URL}/api/clients/${auth.clientId}/campaign`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ campaign: newCampaign })
         });
         
-        if (response.ok) {
-          // עדכון רשימת הלקוחות כדי שהקטלוג (שניגש ל-clients.campaign) יתעדכן מיד ללא רענון
-          setClients(prev => prev.map(c => c.id === auth.clientId ? { ...c, campaign: newCampaign } : c));
+        if (res.ok) {
+           // סנכרון רשימת הלקוחות כדי שהקטלוג יתעדכן מיד
+           setClients(prev => prev.map(c => c.id === auth.clientId ? { ...c, campaign: newCampaign } : c));
         }
       } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }

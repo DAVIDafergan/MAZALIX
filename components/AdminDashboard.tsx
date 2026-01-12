@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
 import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck, Save, Loader2, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -29,6 +29,14 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   // סטייט חדש לניהול מצב השמירה של הקמפיין
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  
+  // תיקון קריטי: סטייט מקומי לעריכה כדי למנוע קפיצות ואיפוסים בזמן הקלדה
+  const [localCampaign, setLocalCampaign] = useState<CampaignSettings>(campaign);
+
+  // סנכרון ראשוני כשהנתונים נטענים מהשרת
+  useEffect(() => {
+    if (campaign) setLocalCampaign(campaign);
+  }, [campaign]);
 
   // סטייט לטופס הוספת תורם ידני
   const [manualDonorForm, setManualDonorForm] = useState({ name: '', phone: '', email: '', amount: '', packageId: '' });
@@ -46,14 +54,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const handleSaveCampaignSettings = async () => {
     setIsSavingCampaign(true);
     try {
-      // שליחת אובייקט הקמפיין המעודכן לסטור שמעדכן את ה-DB
-      // אנו מוודאים שמעבירים את ה-clientId כדי שהקטלוג ידע לשייך את הנתונים
-      await updateCampaign({
-        ...campaign,
-        id: auth.clientId,
-        clientId: auth.clientId 
-      });
-      
+      // שליחת אובייקט הקמפיין המעודכן מהסטייט המקומי למסד הנתונים
+      await updateCampaign(localCampaign);
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
     } catch (err) {
@@ -918,27 +920,27 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם' : 'Name'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={campaign.nameHE} onChange={e => updateCampaign({nameHE: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.nameHE} onChange={e => setLocalCampaign({...localCampaign, nameHE: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תאריך' : 'Draw Date'}</label>
-                    <input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={campaign.drawDate} onChange={e => updateCampaign({drawDate: e.target.value})} />
+                    <input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.drawDate} onChange={e => setLocalCampaign({...localCampaign, drawDate: e.target.value})} />
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לינק תרומות' : 'Donation URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.donationUrl} onChange={e => updateCampaign({donationUrl: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.donationUrl} onChange={e => setLocalCampaign({...localCampaign, donationUrl: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לוגו URL' : 'Logo URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.logo} onChange={e => updateCampaign({logo: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.logo} onChange={e => setLocalCampaign({...localCampaign, logo: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'באנר (תמונה) URL' : 'Banner (Image) URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.banner} onChange={e => updateCampaign({banner: e.target.value})} />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.banner} onChange={e => setLocalCampaign({...localCampaign, banner: e.target.value})} />
                   </div>
                   <div className="space-y-1 md:col-span-2">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סרטון רקע URL' : 'Video Background URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={campaign.videoUrl || ''} onChange={e => updateCampaign({videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" />
+                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.videoUrl || ''} onChange={e => setLocalCampaign({...localCampaign, videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" />
                   </div>
                 </div>
                 <div className="pt-4 border-t border-white/5">
