@@ -154,28 +154,16 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
     setIsGeneratingAI(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Generate a breathtaking, ultra-luxurious, and seductive marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
-        The target audience is wealthy philanthropists. 
+      // תיקון: משיכת המפתח מהסביבה הנכונה (Railway/Vite)
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBtHghrk7AVn3WU0Ov9GhyNj_SmxJxBCn8";
+      const ai = new GoogleGenAI(apiKey);
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      const response = await model.generateContent(`Generate a breathtaking, ultra-luxurious, and seductive marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
         Provide the response in JSON format with two keys: "he" (Hebrew) and "en" (English). 
-        The tone should be extremely premium, enticing, and persuasive. 
-        In Hebrew use evocative terms like "יוצא דופן", "מופת של יוקרה", "חוויה שאין שניה לה".`,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              he: { type: Type.STRING },
-              en: { type: Type.STRING }
-            },
-            required: ["he", "en"]
-          }
-        }
-      });
+        The tone should be extremely premium. In Hebrew use evocative terms like "יוצא דופן", "מופת של יוקרה".`);
 
-      const result = JSON.parse(response.text);
+      const result = JSON.parse(response.response.text().replace(/```json/g, "").replace(/```/g, ""));
       setNewPrize(prev => ({
         ...prev,
         descriptionHE: result.he,
@@ -183,7 +171,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       }));
     } catch (err) {
       console.error("AI Generation failed:", err);
-      alert(isHE ? "כשלו בניסיון לייצר תיאור. בדוק את חיבור ה-API שלך." : "Failed to generate description. Check API connection.");
+      alert(isHE ? "כשלו בניסיון לייצר תיאור. בדוק את חיבור ה-API שלך." : "Failed to generate description.");
     } finally {
       setIsGeneratingAI(false);
     }
@@ -331,14 +319,20 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     }
   };
 
+  // תיקון קריטי: לוגיקת בחירת מתנה במסלול
   const handleTogglePrizeInPkg = (prizeId: string | 'ALL') => {
+    if (!prizeId) return;
     setPkgForm(prev => {
-      const rules = prev.rules || [];
-      const existing = rules.find(r => r.prizeId === prizeId);
-      if (existing) {
-        return { ...prev, rules: rules.filter(r => r.prizeId !== prizeId) };
+      const currentRules = [...(prev.rules || [])];
+      const existingIdx = currentRules.findIndex(r => r.prizeId === prizeId);
+      
+      if (existingIdx > -1) {
+        // אם כבר קיים, הסר אותו
+        const newRules = currentRules.filter(r => r.prizeId !== prizeId);
+        return { ...prev, rules: newRules };
       } else {
-        return { ...prev, rules: [...rules, { prizeId, count: 1 }] };
+        // אם לא קיים, הוסף אותו כחוק חדש (עם כרטיס 1 כברירת מחדל)
+        return { ...prev, rules: [...currentRules, { prizeId, count: 1 }] };
       }
     });
   };
@@ -730,7 +724,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{isHE ? 'בחירת פרסים למסלול (לחץ להוספה/הסרה)' : 'Select prizes for route (Click to toggle)'}</p>
+                  <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">{isHE ? 'בחירת פרסים למסלול (לחץ להוספה/הסרה)' : 'Select prizes for route'}</p>
                   <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                     <div 
                       onClick={() => handleTogglePrizeInPkg('ALL')}
@@ -767,7 +761,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                           {r.prizeId === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? clientPrizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <label className="text-[7px] text-gray-500 font-bold">{isHE ? 'כרטיסים:' : 'TIX:'}</label>
+                          <label className="text-[7px] text-gray-500 font-bold uppercase">{isHE ? 'כמות כרטיסים:' : 'TIX:'}</label>
                           <input type="number" className="w-12 bg-black/40 border border-[#C2A353]/30 p-1 rounded text-[10px] text-center font-black outline-none text-[#C2A353]" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
                         </div>
                       </div>
