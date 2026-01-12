@@ -39,6 +39,34 @@ const getModel = (name) => {
   return null;
 };
 
+// --- לוגיקת מנהל על (Super Admin) ---
+
+const ADMIN_CREDENTIALS = {
+  username: 'DA1234',
+  password: 'DA1234',
+  token: 'mazalix-admin-super-token-2026' // טוקן פשוט לזיהוי
+};
+
+// נתיב התחברות למנהל
+app.post('/api/admin/login', (req, res) => {
+  const { username, password } = req.body;
+  if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+    res.json({ success: true, token: ADMIN_CREDENTIALS.token });
+  } else {
+    res.status(401).json({ success: false, message: "פרטי התחברות שגויים" });
+  }
+});
+
+// Middleware לבדיקת הרשאות מנהל על
+const requireAdmin = (req, res, next) => {
+  const token = req.headers['x-admin-token'];
+  if (token === ADMIN_CREDENTIALS.token) {
+    next();
+  } else {
+    res.status(403).json({ message: "גישה חסומה: נדרשות הרשאות מנהל על" });
+  }
+};
+
 // --- API ROUTES ---
 
 // עדכון הגדרות קמפיין בתוך טבלת Clients
@@ -62,6 +90,19 @@ app.put('/api/clients/:id/campaign', async (req, res) => {
 
 app.post('/api/:collection', async (req, res) => {
   const { collection } = req.params;
+  
+  // הגנה: רק מנהל על יכול להוסיף לקוחות
+  if (collection === 'clients') {
+    return requireAdmin(req, res, async () => {
+      try {
+        let model = getModel(collection);
+        if (!model) return res.status(404).send({ message: "Collection not found" });
+        const doc = await model.create(req.body);
+        res.status(201).send(doc);
+      } catch (e) { res.status(400).send(e); }
+    });
+  }
+
   try {
     let model = getModel(collection);
     if (!model) return res.status(404).send({ message: "Collection not found" });
@@ -98,6 +139,19 @@ app.put('/api/:collection/:id', async (req, res) => {
 
 app.delete('/api/:collection/:id', async (req, res) => {
   const { collection, id } = req.params;
+
+  // הגנה: רק מנהל על יכול למחוק לקוחות
+  if (collection === 'clients') {
+    return requireAdmin(req, res, async () => {
+      try {
+        const model = getModel(collection);
+        if (!model) return res.status(404).send({ message: "Collection not found" });
+        await model.findOneAndDelete({ id: id });
+        res.send({ message: "Deleted" });
+      } catch (e) { res.status(500).send(e); }
+    });
+  }
+
   try {
     const model = getModel(collection);
     if (!model) return res.status(404).send({ message: "Collection not found" });
