@@ -128,10 +128,11 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
   
   const currentClient = useMemo(() => {
     if (!Array.isArray(clients)) return null;
-    return activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
+    // תיקון קריטי: מחפשים גם לפי 'id' וגם לפי ה-'_id' של מונגו כדי לוודא סנכרון עם השרת
+    return activeClientId ? clients.find((c: any) => c.id === activeClientId || c._id === activeClientId) : null;
   }, [clients, activeClientId]);
 
-  // משיכת הקמפיין: סדר עדיפויות - קמפיין הלקוח, לאחר מכן הקמפיין מהסטור (שם נשמרות ההגדרות מהמנהל)
+  // משיכת הקמפיין: סדר עדיפויות - קמפיין הלקוח האמיתי מהמסד, לאחר מכן Fallback
   const currentCampaign = useMemo(() => {
     return currentClient?.campaign || campaign || {};
   }, [currentClient, campaign]);
@@ -241,13 +242,13 @@ const Catalog: React.FC<{ store: any }> = ({ store }) => {
                 </div>
                 <div className="flex gap-4">
                   <button 
-                    onClick={() => navigate?.(`/catalog/${client.id}`)}
+                    onClick={() => navigate?.(`/catalog/${client._id || client.id}`)}
                     className="flex-1 py-5 luxury-gradient text-black font-black rounded-2xl text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.03] active:scale-95 transition-all shadow-xl"
                   >
                     <Layout size={18} /> {isHE ? 'כניסה לקטלוג' : 'View Catalog'}
                   </button>
                   <button 
-                    onClick={() => handleShareCatalog(client.id)}
+                    onClick={() => handleShareCatalog(client._id || client.id)}
                     className="w-16 h-16 bg-white/5 border border-white/10 rounded-2xl text-white hover:bg-white/10 transition-all flex items-center justify-center shadow-lg"
                   >
                     <Share2 size={20} />
