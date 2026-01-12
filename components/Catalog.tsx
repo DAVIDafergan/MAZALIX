@@ -19,6 +19,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
 
   const clientPrizes = activeClientId ? prizes.filter((p: any) => p.clientId === activeClientId) : prizes;
   const clientPackages = activeClientId ? packages.filter((p: any) => p.clientId === activeClientId) : packages;
+  const clientTickets = activeClientId ? tickets.filter((t: any) => t.clientId === activeClientId) : tickets;
   
   const currentClient = activeClientId ? clients.find((c: any) => c.id === activeClientId) : null;
   const currentCampaign = currentClient?.campaign || campaign;
@@ -179,7 +180,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
         <div className="absolute top-6 right-6 md:top-10 md:right-10 z-20 flex items-center gap-3 bg-white/5 backdrop-blur-xl px-4 py-2 md:px-6 md:py-3 rounded-2xl border border-white/10 shadow-2xl animate-bounce" style={{ animationDuration: '4s' }}>
            <Ticket size={20} className="gold-text" />
            <div className="text-right">
-              <p className="text-xs md:text-xl font-black tracking-tighter italic leading-none">{tickets.length.toLocaleString()}</p>
+              <p className="text-xs md:text-xl font-black tracking-tighter italic leading-none">{clientTickets.length.toLocaleString()}</p>
               <p className="text-[7px] md:text-[9px] font-black uppercase text-gray-500 tracking-widest">{isHE ? 'כרטיסי מזל' : 'Luck Tokens'}</p>
            </div>
         </div>
@@ -237,7 +238,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
           <div className="relative h-[320px] md:h-[520px] w-full floating glass-card rounded-[2.5rem] md:rounded-[4.5rem] border-2 border-[#C2A353]/30 overflow-hidden shadow-[0_0_120px_rgba(194,163,83,0.2)] group">
             {featuredPrizes.map((p, idx) => {
               const isActive = idx === featuredIndex;
-              const prizeTicketCount = tickets.filter((t: any) => t.prizeId === p.id).length;
+              const prizeTicketCount = clientTickets.filter((t: any) => t.prizeId === p.id).length;
               
               return (
                 <div key={p.id} className={`absolute inset-0 transition-all duration-1000 ease-in-out ${isActive ? 'opacity-100 translate-x-0 scale-100 z-10' : 'opacity-0 translate-x-full scale-105 z-0'}`}>
@@ -328,7 +329,7 @@ const Catalog: React.FC<CatalogProps> = ({ store }) => {
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 px-4">
                 {regularPrizes.map((p: Prize) => {
-                  const ticketCount = tickets.filter((t: any) => t.prizeId === p.id).length;
+                  const ticketCount = clientTickets.filter((t: any) => t.prizeId === p.id).length;
                   if (p.isFullPage) {
                     return (
                       <div key={p.id} className="col-span-full relative h-[400px] md:h-[650px] rounded-[3rem] md:rounded-[4rem] overflow-hidden glass-card shadow-2xl group border border-white/5 animate-fade-in my-6">

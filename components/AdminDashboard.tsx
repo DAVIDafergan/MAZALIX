@@ -13,6 +13,13 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const { prizes, packages, donors, campaign, updateCampaign, addPrize, deletePrize, updatePrize, addPackage, deletePackage, updatePackage, addDonor, tickets, lang, resetData, auth, login, logout, clients, addClient, unmappedDonors, assignPackageToDonor } = store;
   const isHE = lang === Language.HE;
   
+  // --- סינון נתונים לפי לקוח מחובר ---
+  const clientPrizes = auth.isSuperAdmin ? prizes : prizes.filter((p: any) => p.clientId === auth.clientId);
+  const clientPackages = auth.isSuperAdmin ? packages : packages.filter((p: any) => p.clientId === auth.clientId);
+  const clientDonors = auth.isSuperAdmin ? donors : donors.filter((d: any) => d.clientId === auth.clientId);
+  const clientTickets = auth.isSuperAdmin ? tickets : tickets.filter((t: any) => t.clientId === auth.clientId);
+  const clientUnmapped = auth.isSuperAdmin ? unmappedDonors : unmappedDonors.filter((d: any) => d.clientId === auth.clientId);
+
   const [loginForm, setLoginForm] = useState({ user: '', pass: '' });
   const [activeTab, setActiveTab] = useState<'prizes' | 'routes' | 'donors' | 'live' | 'campaign' | 'super' | 'alerts' | 'summary'>('prizes');
   const [isImporting, setIsImporting] = useState(false);
@@ -29,7 +36,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   // עדכון סטייט לקוח לכלול את כל השדות שביקשת - הוספתי טלפון ומייל
   const [newClient, setNewClient] = useState({ name: '', phone: '', email: '', user: '', pass: '' });
   const [newPrize, setNewPrize] = useState<Partial<Prize>>({
-    titleHE: '', titleEN: '', descriptionHE: '', descriptionEN: '', value: 0, media: [], status: DrawStatus.OPEN, order: prizes.length, isFeatured: false, isFullPage: false
+    titleHE: '', titleEN: '', descriptionHE: '', descriptionEN: '', value: 0, media: [], status: DrawStatus.OPEN, order: clientPrizes.length, isFeatured: false, isFullPage: false
   });
   const [pkgForm, setPkgForm] = useState<Partial<Package>>({
     nameHE: '', minAmount: 0, rules: [], image: '', joinLink: '', color: '#C2A353'
@@ -104,10 +111,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
         const donorId = Math.random().toString(36).substr(2, 9);
         
         // מציאת מסלול תואם בדיוק לפי הסכום
-        const matchedPackage = packages.find((p: Package) => p.minAmount === donationAmount);
+        const matchedPackage = clientPackages.find((p: Package) => p.minAmount === donationAmount);
         
         const newDonor: Donor = {
           id: donorId,
+          clientId: auth.clientId,
           name: donorName,
           phone: donorPhone,
           email: donorEmail,
@@ -212,6 +220,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     const donorId = Math.random().toString(36).substr(2, 9);
     const newDonor: Donor = {
         id: donorId,
+        clientId: auth.clientId,
         name: manualDonorForm.name,
         phone: manualDonorForm.phone,
         email: manualDonorForm.email,
@@ -326,11 +335,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   };
 
   const movePrize = (id: string, direction: 'up' | 'down') => {
-    const idx = prizes.findIndex((p: Prize) => p.id === id);
-    const newPrizes = [...prizes];
+    const idx = clientPrizes.findIndex((p: Prize) => p.id === id);
+    const newPrizes = [...clientPrizes];
     if (direction === 'up' && idx > 0) {
       [newPrizes[idx], newPrizes[idx - 1]] = [newPrizes[idx - 1], newPrizes[idx]];
-    } else if (direction === 'down' && idx < prizes.length - 1) {
+    } else if (direction === 'down' && idx < clientPrizes.length - 1) {
       [newPrizes[idx], newPrizes[idx + 1]] = [newPrizes[idx + 1], newPrizes[idx]];
     }
     newPrizes.forEach((p, i) => updatePrize(p.id, { order: i }));
@@ -338,13 +347,13 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
   const onCreatePrize = () => {
     if (!newPrize.titleHE) return;
-    addPrize({ ...newPrize, id: 'p' + Math.random().toString(36).substr(2, 9), titleEN: newPrize.titleEN || newPrize.titleHE, descriptionEN: newPrize.descriptionEN || '', descriptionHE: newPrize.descriptionHE || '', order: prizes.length } as Prize);
-    setNewPrize({ titleHE: '', titleEN: '', descriptionEN: '', descriptionHE: '', value: 0, media: [], status: DrawStatus.OPEN, order: prizes.length, isFeatured: false, isFullPage: false });
+    addPrize({ ...newPrize, id: 'p' + Math.random().toString(36).substr(2, 9), clientId: auth.clientId, titleEN: newPrize.titleEN || newPrize.titleHE, descriptionEN: newPrize.descriptionEN || '', descriptionHE: newPrize.descriptionHE || '', order: clientPrizes.length } as Prize);
+    setNewPrize({ titleHE: '', titleEN: '', descriptionEN: '', descriptionHE: '', value: 0, media: [], status: DrawStatus.OPEN, order: clientPrizes.length, isFeatured: false, isFullPage: false });
   };
 
   const onCreatePackage = () => {
     if (!pkgForm.nameHE || !pkgForm.minAmount) return;
-    addPackage({ ...pkgForm, id: 'pkg' + Math.random().toString(36).substr(2, 9), nameEN: pkgForm.nameHE } as Package);
+    addPackage({ ...pkgForm, id: 'pkg' + Math.random().toString(36).substr(2, 9), clientId: auth.clientId, nameEN: pkgForm.nameHE } as Package);
     setPkgForm({ nameHE: '', minAmount: 0, rules: [], image: '', joinLink: '', color: '#C2A353' });
   };
 
@@ -362,10 +371,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
           <h2 className="font-black text-sm italic">{auth.isSuperAdmin ? (isHE ? 'מנהל על - Mazalix' : 'Mazalix Super Admin') : (isHE ? `ניהול: ${auth.user}` : `Admin: ${auth.user}`)}</h2>
         </div>
         <div className="flex items-center gap-4">
-          {unmappedDonors.length > 0 && (
+          {clientUnmapped.length > 0 && (
             <button onClick={() => setActiveTab('alerts')} className="relative p-2 bg-red-500/10 rounded-full text-red-500 animate-pulse">
                <Bell size={18} />
-               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded-full flex items-center justify-center text-[8px] font-bold">{unmappedDonors.length}</span>
+               <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white rounded-full flex items-center justify-center text-[8px] font-bold">{clientUnmapped.length}</span>
             </button>
           )}
           <button onClick={logout} className="text-gray-500 hover:text-red-500 flex items-center gap-1.5 text-[10px] font-bold uppercase transition-colors">
@@ -377,10 +386,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       {!auth.isSuperAdmin && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
           {[
-            { label: isHE ? 'הכנסות' : 'Revenue', val: `₪${donors.reduce((a:any, b:any) => a+b.totalDonated, 0).toLocaleString()}`, icon: <DollarSign size={14} className="text-green-500" /> },
-            { label: isHE ? 'כרטיסים' : 'Tickets', val: tickets.length.toLocaleString(), icon: <TicketIcon size={14} className="text-blue-500" /> },
-            { label: isHE ? 'תורמים' : 'Donors', val: donors.length, icon: <Users size={14} className="text-amber-500" /> },
-            { label: isHE ? 'פרסים' : 'Prizes', val: prizes.length, icon: <Gift size={14} className="text-pink-500" /> },
+            { label: isHE ? 'הכנסות' : 'Revenue', val: `₪${clientDonors.reduce((a:any, b:any) => a+b.totalDonated, 0).toLocaleString()}`, icon: <DollarSign size={14} className="text-green-500" /> },
+            { label: isHE ? 'כרטיסים' : 'Tickets', val: clientTickets.length.toLocaleString(), icon: <TicketIcon size={14} className="text-blue-500" /> },
+            { label: isHE ? 'תורמים' : 'Donors', val: clientDonors.length, icon: <Users size={14} className="text-amber-500" /> },
+            { label: isHE ? 'פרסים' : 'Prizes', val: clientPrizes.length, icon: <Gift size={14} className="text-pink-500" /> },
           ].map((stat, i) => (
             <div key={i} className="glass-card p-3 rounded-xl flex items-center justify-between">
               <div>
@@ -497,9 +506,9 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                         </tr>
                      </thead>
                      <tbody>
-                        {prizes.map((p: Prize) => {
-                          const count = tickets.filter((t: any) => t.prizeId === p.id).length;
-                          const ratio = tickets.length > 0 ? ((count / tickets.length) * 100).toFixed(1) : '0';
+                        {clientPrizes.map((p: Prize) => {
+                          const count = clientTickets.filter((t: any) => t.prizeId === p.id).length;
+                          const ratio = clientTickets.length > 0 ? ((count / clientTickets.length) * 100).toFixed(1) : '0';
                           return (
                             <tr key={p.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                                <td className="py-4 pr-4">
@@ -528,7 +537,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                      </tbody>
                    </table>
                 </div>
-                {prizes.length === 0 && (
+                {clientPrizes.length === 0 && (
                    <p className="text-center py-10 text-gray-600 italic text-xs">{isHE ? 'אין נתונים להצגה' : 'No summary data available'}</p>
                 )}
              </div>
@@ -587,17 +596,17 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   <button onClick={onCreatePrize} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg hover:scale-[1.01] transition-transform">{isHE ? 'הוסף לקטלוג' : 'Add to Collection'}</button>
                 </div>
                 <div className="grid grid-cols-1 gap-1.5">
-                  {prizes.length === 0 ? (
+                  {clientPrizes.length === 0 ? (
                     <p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים בקטלוג עדיין' : 'No prizes in catalog yet'}</p>
                   ) : (
-                    prizes.sort((a:any, b:any) => a.order - b.order).map((p: any, idx: number) => {
-                      const prizeTicketCount = tickets.filter((t: any) => t.prizeId === p.id).length;
+                    clientPrizes.sort((a:any, b:any) => a.order - b.order).map((p: any, idx: number) => {
+                      const prizeTicketCount = clientTickets.filter((t: any) => t.prizeId === p.id).length;
                       return (
                         <div key={p.id} className="flex items-center justify-between p-2 glass-card rounded-xl border border-white/5 group">
                           <div className="flex items-center gap-3">
                             <div className="flex flex-col text-gray-600 scale-75">
                               <button onClick={() => movePrize(p.id, 'up')} disabled={idx === 0} className="hover:text-white disabled:opacity-10"><ArrowUp size={12}/></button>
-                              <button onClick={() => movePrize(p.id, 'down')} disabled={idx === prizes.length - 1} className="hover:text-white disabled:opacity-10"><ArrowDown size={12}/></button>
+                              <button onClick={() => movePrize(p.id, 'down')} disabled={idx === clientPrizes.length - 1} className="hover:text-white disabled:opacity-10"><ArrowDown size={12}/></button>
                             </div>
                             <img src={p.media[0]?.url} className="w-8 h-8 object-cover rounded-lg border border-white/10" />
                             <div>
@@ -621,18 +630,18 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-base font-black italic text-red-500 flex items-center gap-2"><AlertCircle size={18}/> {isHE ? 'תורמים לטיפול ידני' : 'Donors Needing Attention'}</h2>
-                <div className="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[8px] font-black">{unmappedDonors.length} {isHE ? 'מקרים' : 'Issues'}</div>
+                <div className="px-3 py-1 bg-red-500/10 text-red-500 rounded-full text-[8px] font-black">{clientUnmapped.length} {isHE ? 'מקרים' : 'Issues'}</div>
               </div>
               <p className="text-[10px] text-gray-500 leading-relaxed italic">{isHE ? 'להלן תורמים שסכום תרומתם לא הגיע לרף המינימלי של אף מסלול. יש לשייך להם כרטיסים באופן ידני.' : 'These donors did not reach any package threshold. Manual ticket assignment is required.'}</p>
               
               <div className="space-y-2">
-                {unmappedDonors.length === 0 ? (
+                {clientUnmapped.length === 0 ? (
                   <div className="text-center py-20 text-gray-700">
                     <CheckCircle size={40} className="mx-auto mb-3 opacity-20" />
                     <p className="text-xs italic">{isHE ? 'אין חריגות במערכת' : 'No unmapped donors'}</p>
                   </div>
                 ) : (
-                  unmappedDonors.map((d: Donor) => (
+                  clientUnmapped.map((d: Donor) => (
                     <div key={d.id} className="p-4 glass-card border border-red-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:bg-red-500/[0.02] transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center font-black text-red-500">{d.name.charAt(0)}</div>
@@ -648,7 +657,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                             onChange={(e) => setSelectedManualPkg({...selectedManualPkg, [d.id]: e.target.value})}
                         >
                             <option value="">{isHE ? 'בחר מסלול...' : 'Select...'}</option>
-                            {packages.map((pkg: Package) => (
+                            {clientPackages.map((pkg: Package) => (
                                 <option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
                             ))}
                         </select>
@@ -712,7 +721,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       <Layers size={14} className={pkgForm.rules?.some(r => r.prizeId === 'ALL') ? 'gold-text' : 'text-gray-600'} />
                       <span className="text-[7px] font-black uppercase mt-1">{isHE ? 'הכל' : 'ALL'}</span>
                     </div>
-                    {prizes.map((p: any) => {
+                    {clientPrizes.map((p: any) => {
                       const isActive = pkgForm.rules?.some(r => r.prizeId === p.id);
                       return (
                         <div 
@@ -736,7 +745,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     {pkgForm.rules.map(r => (
                       <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
                         <span className="text-[9px] font-bold truncate max-w-[120px]">
-                          {r.prizeId === 'ALL' ? (isHE ? 'הכל' : 'ALL') : (isHE ? prizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
+                          {r.prizeId === 'ALL' ? (isHE ? 'הכל' : 'ALL') : (isHE ? clientPrizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
                         </span>
                         <div className="flex items-center gap-1.5">
                           <input type="number" className="w-10 bg-black/40 border border-white/10 p-1 rounded text-[10px] text-center font-black outline-none" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
@@ -749,7 +758,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                {packages.map((pkg: any) => (
+                {clientPackages.map((pkg: any) => (
                   <div key={pkg.id} style={{ borderColor: `${pkg.color}40` }} className="p-3 glass-card rounded-xl border flex flex-col gap-2 relative group">
                     <div className="flex justify-between items-start">
                       <h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4>
@@ -789,7 +798,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       onChange={e => setManualDonorForm({...manualDonorForm, packageId: e.target.value})}
                   >
                       <option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>
-                      {packages.map((pkg: any) => (
+                      {clientPackages.map((pkg: any) => (
                           <option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
                       ))}
                   </select>
@@ -813,11 +822,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               </div>
 
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 text-xs">
-                {donors.length === 0 ? (
+                {clientDonors.length === 0 ? (
                   <p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>
                 ) : (
-                  donors.map((d: Donor) => {
-                    const assignedPkg = packages.find((p: Package) => p.id === d.packageId);
+                  clientDonors.map((d: Donor) => {
+                    const assignedPkg = clientPackages.find((p: Package) => p.id === d.packageId);
                     return (
                         <div key={d.id} className="p-3 glass-card rounded-xl flex justify-between items-center border border-white/5 hover:border-white/10 transition-all">
                         <div className="flex items-center gap-3">
@@ -894,10 +903,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
             <div className="space-y-4">
               <h2 className="text-base font-black italic">{isHE ? 'מרכז הגרלות לייב' : 'Live Draw Center'}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {prizes.length === 0 ? (
+                {clientPrizes.length === 0 ? (
                     <p className="col-span-2 text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים להגרלה' : 'No prizes available for drawing'}</p>
                 ) : (
-                    prizes.map((p: any) => (
+                    clientPrizes.map((p: any) => (
                     <div key={p.id} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
                         <div className="flex gap-4 items-start mb-4">
                             <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0">
@@ -907,7 +916,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                                 <p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p>
                                 <div className="flex items-center gap-2">
                                     <TicketIcon size={10} className="text-blue-500" />
-                                    <span className="text-[9px] text-gray-400 font-black uppercase">{tickets.filter((t:any)=>t.prizeId===p.id).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span>
+                                    <span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===p.id).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span>
                                 </div>
                             </div>
                             <button onClick={() => copyPublicLink(p.id)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
