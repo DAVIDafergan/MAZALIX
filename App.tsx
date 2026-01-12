@@ -3,12 +3,12 @@ import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { useStore } from './store/useStore';
 import { Language } from './types';
 
-// וודא שהשמות כאן תואמים בדיוק לשם הקובץ בתיקייה (אותיות גדולות/קטנות)
+// תיקון ייבואים לפי צילום המסך שלך:
 import Catalog from './components/Catalog';
-import AdminDashboard from './components/AdminDashboard';
+import AdminDashboard from './components/AdminDashboard'; // וודא שזה השם המלא של הקובץ
 import DonorPortal from './components/DonorPortal';
 import LiveDraw from './components/LiveDraw';
-import Home from './components/Home';
+import Home from './components/HomePage'; // שים לב לתוספת ה-Page!
 
 const App: React.FC = () => {
   const store = useStore();
@@ -50,15 +50,11 @@ const App: React.FC = () => {
 
         <main className="flex-grow container mx-auto px-1 md:px-4 py-8">
           <Routes>
-            {/* ניתוב ראשי - אם מחובר כחזן/מוסד, הצג קטלוג שלו, אחרת דף בית */}
             <Route 
               path="/" 
               element={store.auth.isLoggedIn && !store.auth.isSuperAdmin ? <Catalog store={store} /> : <Home store={store} />} 
             />
-            
-            {/* ניתוב לקטלוג ספציפי דרך לינק חיצוני */}
             <Route path="/catalog/:clientId" element={<Catalog store={store} />} />
-            
             <Route path="/admin" element={<AdminDashboard store={store} />} />
             <Route path="/portal" element={<DonorPortal store={store} />} />
             <Route path="/draw/:prizeId" element={<LiveDraw store={store} />} />
