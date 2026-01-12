@@ -16,7 +16,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(cors());
 
 // --- חיבור למסד הנתונים ---
-// השתמשתי בכתובת של Railway עם אפשרות למשתנה סביבה (PORTABLE)
 const MONGO_URI = process.env.MONGO_URI || "mongodb://mongo:fuXtLUJfejdmyazKTgClwAytHgRwLUEV@mongodb.railway.internal:27017";
 
 mongoose.connect(MONGO_URI)
@@ -47,11 +46,15 @@ const ADMIN_CREDENTIALS = {
   token: 'mazalix-admin-super-token-2026' // טוקן פשוט לזיהוי
 };
 
-// נתיב התחברות למנהל
-app.post('/api/admin/login', (req, res) => {
+// נתיב התחברות למנהל - מעודכן ל-auth/login כדי להתאים ל-Frontend
+app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-    res.json({ success: true, token: ADMIN_CREDENTIALS.token });
+    res.json({ 
+      success: true, 
+      token: ADMIN_CREDENTIALS.token,
+      isSuperAdmin: true // מאפשר ל-App.tsx לזהות אותך כמנהל על
+    });
   } else {
     res.status(401).json({ success: false, message: "פרטי התחברות שגויים" });
   }
@@ -163,14 +166,12 @@ app.delete('/api/:collection/:id', async (req, res) => {
 // --- הגשת קבצים סטטיים (Frontend) ---
 const distPath = path.join(__dirname, 'dist');
 
-// בדיקה אם תיקיית dist קיימת לפני שמנסים להגיש אותה
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
-  // דף זמני למקרה שתיקיית ה-dist עוד לא נבנתה
   app.get('/', (req, res) => {
     res.status(200).send(`
       <div style="text-align:center; padding:50px; font-family:Arial;">
