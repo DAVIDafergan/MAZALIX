@@ -154,20 +154,25 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
     setIsGeneratingAI(true);
     try {
-      // תיקון: משיכת המפתח מהסביבה הנכונה (Railway/Vite)
+      // תיקון: משיכת המפתח מהסביבה הנכונה (Railway/Vite) והגדרת המודל
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBtHghrk7AVn3WU0Ov9GhyNj_SmxJxBCn8";
       const ai = new GoogleGenAI(apiKey);
       const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const response = await model.generateContent(`Generate a breathtaking, ultra-luxurious, and seductive marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
+      const prompt = `Generate a breathtaking, ultra-luxurious, and seductive marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
         Provide the response in JSON format with two keys: "he" (Hebrew) and "en" (English). 
-        The tone should be extremely premium. In Hebrew use evocative terms like "יוצא דופן", "מופת של יוקרה".`);
+        The tone should be extremely premium. In Hebrew use evocative terms like "יוצא דופן", "מופת של יוקרה".`;
 
-      const result = JSON.parse(response.response.text().replace(/```json/g, "").replace(/```/g, ""));
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      // ניקוי תגיות markdown מהפלט כדי לאפשר JSON.parse תקין
+      const text = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
+      const data = JSON.parse(text);
+
       setNewPrize(prev => ({
         ...prev,
-        descriptionHE: result.he,
-        descriptionEN: result.en
+        descriptionHE: data.he,
+        descriptionEN: data.en
       }));
     } catch (err) {
       console.error("AI Generation failed:", err);
@@ -319,20 +324,19 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     }
   };
 
-  // תיקון קריטי: לוגיקת בחירת מתנה במסלול
+  // תיקון קריטי: לוגיקת בחירת מתנה במסלול - השוואה מחמירה ועדכון פונקציונלי
   const handleTogglePrizeInPkg = (prizeId: string | 'ALL') => {
     if (!prizeId) return;
     setPkgForm(prev => {
       const currentRules = [...(prev.rules || [])];
-      const existingIdx = currentRules.findIndex(r => r.prizeId === prizeId);
+      const isExisting = currentRules.some(r => String(r.prizeId) === String(prizeId));
       
-      if (existingIdx > -1) {
-        // אם כבר קיים, הסר אותו
-        const newRules = currentRules.filter(r => r.prizeId !== prizeId);
-        return { ...prev, rules: newRules };
+      if (isExisting) {
+        // הסר רק את המתנה הספציפית הזו
+        return { ...prev, rules: currentRules.filter(r => String(r.prizeId) !== String(prizeId)) };
       } else {
-        // אם לא קיים, הוסף אותו כחוק חדש (עם כרטיס 1 כברירת מחדל)
-        return { ...prev, rules: [...currentRules, { prizeId, count: 1 }] };
+        // הוסף רק את המתנה הספציפית הזו
+        return { ...prev, rules: [...currentRules, { prizeId: String(prizeId), count: 1 }] };
       }
     });
   };
@@ -340,7 +344,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const handleUpdateRuleCount = (prizeId: string | 'ALL', count: number) => {
     setPkgForm(prev => ({
       ...prev,
-      rules: (prev.rules || []).map(r => r.prizeId === prizeId ? { ...r, count: Math.max(1, count) } : r)
+      rules: (prev.rules || []).map(r => String(r.prizeId) === String(prizeId) ? { ...r, count: Math.max(1, count) } : r)
     }));
   };
 
@@ -728,13 +732,13 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
                     <div 
                       onClick={() => handleTogglePrizeInPkg('ALL')}
-                      className={`relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 cursor-pointer transition-all ${pkgForm.rules?.some(r => r.prizeId === 'ALL') ? 'border-[#C2A353] bg-[#C2A353]/10 shadow-lg' : 'border-white/5 bg-white/5 grayscale hover:grayscale-0'}`}
+                      className={`relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-1 cursor-pointer transition-all ${pkgForm.rules?.some(r => String(r.prizeId) === 'ALL') ? 'border-[#C2A353] bg-[#C2A353]/10 shadow-lg' : 'border-white/5 bg-white/5 grayscale hover:grayscale-0'}`}
                     >
-                      <Layers size={14} className={pkgForm.rules?.some(r => r.prizeId === 'ALL') ? 'gold-text' : 'text-gray-600'} />
+                      <Layers size={14} className={pkgForm.rules?.some(r => String(r.prizeId) === 'ALL') ? 'gold-text' : 'text-gray-600'} />
                       <span className="text-[7px] font-black uppercase mt-1">{isHE ? 'הכל' : 'ALL'}</span>
                     </div>
                     {clientPrizes.map((p: any) => {
-                      const isActive = pkgForm.rules?.some(r => r.prizeId === p.id);
+                      const isActive = pkgForm.rules?.some(r => String(r.prizeId) === String(p.id));
                       return (
                         <div 
                           key={p.id}
@@ -755,17 +759,20 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 {pkgForm.rules && pkgForm.rules.length > 0 && (
                   <div className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5">
                     <p className="text-[8px] font-black text-gray-500 uppercase mb-2">{isHE ? 'הגדרת כמות כרטיסים לכל פרס נבחר:' : 'Configure Ticket Counts:'}</p>
-                    {pkgForm.rules.map(r => (
-                      <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
-                        <span className="text-[9px] font-bold truncate max-w-[120px]">
-                          {r.prizeId === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? clientPrizes.find(p => p.id === r.prizeId)?.titleHE : 'Prize')}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-[7px] text-gray-500 font-bold uppercase">{isHE ? 'כמות כרטיסים:' : 'TIX:'}</label>
-                          <input type="number" className="w-12 bg-black/40 border border-[#C2A353]/30 p-1 rounded text-[10px] text-center font-black outline-none text-[#C2A353]" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
+                    {pkgForm.rules.map(r => {
+                      const matchedPrize = clientPrizes.find(p => String(p.id) === String(r.prizeId));
+                      return (
+                        <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
+                          <span className="text-[9px] font-bold truncate max-w-[120px]">
+                            {String(r.prizeId) === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? matchedPrize?.titleHE : 'Prize')}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[7px] text-gray-500 font-bold uppercase">{isHE ? 'כמות כרטיסים:' : 'TIX:'}</label>
+                            <input type="number" className="w-12 bg-black/40 border border-[#C2A353]/30 p-1 rounded text-[10px] text-center font-black outline-none text-[#C2A353]" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
                 <button onClick={onCreatePackage} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg">{isHE ? 'צור מסלול' : 'Create Route'}</button>
