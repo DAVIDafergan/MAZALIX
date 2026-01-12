@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Prize, Package, DrawStatus, Language, Donor, CampaignSettings, PackageRule, PrizeMedia, Client } from '../types';
-import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck, Save, Loader2, Eye } from 'lucide-react';
+import { Plus, Upload, Users, Gift, Settings, Activity, Trash2, Download, AlertCircle, RefreshCcw, DollarSign, Ticket as TicketIcon, Image as ImageIcon, Video, Star, Layout, ListOrdered, Calendar, ArrowUp, ArrowDown, ChevronRight, X, Layers, Link as LinkIcon, CheckCircle, Shield, LogOut, Key, Play, ExternalLink, Copy, Sparkles, Wand2, Bell, BarChart3, PieChart, ChevronDown, Paperclip, Mail, Phone, UserPlus, UserCheck, Save, Loader2, Eye, Edit2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from "@google/genai";
 import * as XLSX from 'xlsx'; // ייבוא הספרייה לקריאת אקסל
@@ -25,6 +25,9 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const [isImporting, setIsImporting] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [selectedManualPkg, setSelectedManualPkg] = useState<Record<string, string>>({});
+
+  // סטייט לניהול עריכת מתנה
+  const [editingPrize, setEditingPrize] = useState<Prize | null>(null);
 
   // סטייט חדש לניהול מצב השמירה של הקמפיין
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
@@ -154,25 +157,21 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
     setIsGeneratingAI(true);
     try {
-      // תיקון: משיכת המפתח מהסביבה הנכונה (Railway/Vite) והגדרת המודל
+      // תיקון: משיכת המפתח מהסביבה הנכונה (Vite)
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyBtHghrk7AVn3WU0Ov9GhyNj_SmxJxBCn8";
       const ai = new GoogleGenAI(apiKey);
       const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = `Generate a breathtaking, ultra-luxurious, and seductive marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
-        Provide the response in JSON format with two keys: "he" (Hebrew) and "en" (English). 
-        The tone should be extremely premium. In Hebrew use evocative terms like "יוצא דופן", "מופת של יוקרה".`;
+      const response = await model.generateContent(`Generate a breathtaking, ultra-luxurious marketing description for a high-end auction prize titled "${newPrize.titleHE}". 
+        Provide the response in JSON format with keys: "he" and "en".`);
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      // ניקוי תגיות markdown מהפלט כדי לאפשר JSON.parse תקין
-      const text = response.text().replace(/```json/g, "").replace(/```/g, "").trim();
-      const data = JSON.parse(text);
+      const resText = await response.response;
+      const result = JSON.parse(resText.text().replace(/```json/g, "").replace(/```/g, ""));
 
       setNewPrize(prev => ({
         ...prev,
-        descriptionHE: data.he,
-        descriptionEN: data.en
+        descriptionHE: result.he,
+        descriptionEN: result.en
       }));
     } catch (err) {
       console.error("AI Generation failed:", err);
@@ -189,7 +188,6 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       alert(isHE ? 'שם משתמש או סיסמא שגויים' : 'Invalid credentials');
     } else {
       setLoginForm({ user: '', pass: '' });
-      // אם זה מנהל על, נעביר אותו לטאב הלקוחות מיד
       if (loginForm.user === 'admin') setActiveTab('super');
     }
   };
@@ -198,19 +196,14 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     login('demo', 'demo');
   };
 
-  // פונקציית הוספת לקוח משופרת הכוללת את כל השדות
   const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClient.name || !newClient.user || !newClient.pass) return;
-    
-    // שליחת כל הנתונים לסטור (כולל טלפון ומייל)
     addClient(newClient.name, newClient.user, newClient.pass, newClient.phone, newClient.email);
-    
     setNewClient({ name: '', phone: '', email: '', user: '', pass: '' });
     alert(isHE ? 'הלקוח נוסף בהצלחה!' : 'Client added successfully!');
   };
 
-  // פונקציית הוספת תורם ידנית
   const handleManualDonorAdd = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualDonorForm.name || !manualDonorForm.amount) {
@@ -238,14 +231,12 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     alert(isHE ? 'התורם נוסף בהצלחה!' : 'Donor added successfully!');
   };
 
-  // פונקציה להעתקת לינק הקטלוג הציבורי של הלקוח
   const copyClientPublicLink = (clientId: string) => {
     const url = `${window.location.origin}/#/catalog/${clientId}`;
     navigator.clipboard.writeText(url);
     alert(isHE ? 'קישור הקטלוג הועתק!' : 'Catalog link copied!');
   };
 
-  // פונקציה לפתיחת הקטלוג הציבורי
   const openClientPublicLink = (clientId: string) => {
     const url = `${window.location.origin}/#/catalog/${clientId}`;
     window.open(url, '_blank');
@@ -324,18 +315,17 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     }
   };
 
-  // תיקון קריטי: לוגיקת בחירת מתנה במסלול - השוואה מחמירה ועדכון פונקציונלי
+  // תיקון קריטי: לוגיקת בחירת מתנה במסלול
   const handleTogglePrizeInPkg = (prizeId: string | 'ALL') => {
     if (!prizeId) return;
     setPkgForm(prev => {
       const currentRules = [...(prev.rules || [])];
-      const isExisting = currentRules.some(r => String(r.prizeId) === String(prizeId));
+      // שימוש ב-String() מבטיח השוואה תקינה
+      const existingIdx = currentRules.findIndex(r => String(r.prizeId) === String(prizeId));
       
-      if (isExisting) {
-        // הסר רק את המתנה הספציפית הזו
+      if (existingIdx > -1) {
         return { ...prev, rules: currentRules.filter(r => String(r.prizeId) !== String(prizeId)) };
       } else {
-        // הוסף רק את המתנה הספציפית הזו
         return { ...prev, rules: [...currentRules, { prizeId: String(prizeId), count: 1 }] };
       }
     });
@@ -346,6 +336,13 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
       ...prev,
       rules: (prev.rules || []).map(r => String(r.prizeId) === String(prizeId) ? { ...r, count: Math.max(1, count) } : r)
     }));
+  };
+
+  const handleEditPrize = (p: Prize) => {
+    setEditingPrize(p);
+    setNewPrize(p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setActiveTab('prizes');
   };
 
   const movePrize = (id: string, direction: 'up' | 'down') => {
@@ -359,9 +356,17 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     newPrizes.forEach((p, i) => updatePrize(p.id, { order: i }));
   };
 
-  const onCreatePrize = () => {
+  const onCreatePrize = async () => {
     if (!newPrize.titleHE) return;
-    addPrize({ ...newPrize, id: 'p' + Math.random().toString(36).substr(2, 9), clientId: auth.clientId, titleEN: newPrize.titleEN || newPrize.titleHE, descriptionEN: newPrize.descriptionEN || '', descriptionHE: newPrize.descriptionHE || '', order: clientPrizes.length } as Prize);
+    
+    if (editingPrize) {
+      await updatePrize(editingPrize.id, newPrize);
+      setEditingPrize(null);
+      alert(isHE ? 'עודכן בהצלחה' : 'Updated successfully');
+    } else {
+      addPrize({ ...newPrize, id: 'p' + Math.random().toString(36).substr(2, 9), clientId: auth.clientId, order: clientPrizes.length } as Prize);
+    }
+    
     setNewPrize({ titleHE: '', titleEN: '', descriptionEN: '', descriptionHE: '', value: 0, media: [], status: DrawStatus.OPEN, order: clientPrizes.length, isFeatured: false, isFullPage: false });
   };
 
@@ -609,7 +614,15 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       <button onClick={() => setNewPrize(p => ({...p, isFullPage: !p.isFullPage}))} className={`flex-1 p-1.5 rounded-lg text-[9px] font-bold border transition-all ${newPrize.isFullPage ? 'luxury-gradient text-black' : 'bg-white/5 border-white/10 text-gray-500'}`}>{isHE ? 'דף מלא' : 'Full Page'}</button>
                     </div>
                   </div>
-                  <button onClick={onCreatePrize} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg hover:scale-[1.01] transition-transform">{isHE ? 'הוסף לקטלוג' : 'Add to Collection'}</button>
+                  {/* כפתור הוספה/עדכון מותאם */}
+                  <button onClick={onCreatePrize} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg hover:scale-[1.01] transition-transform">
+                    {editingPrize ? (isHE ? 'עדכן פרס' : 'Update Prize') : (isHE ? 'הוסף לקטלוג' : 'Add to Collection')}
+                  </button>
+                  {editingPrize && (
+                    <button onClick={() => {setEditingPrize(null); setNewPrize({titleHE:''})}} className="w-full bg-white/5 p-2 rounded-lg text-[10px] font-bold text-gray-500 italic">
+                      {isHE ? 'ביטול עריכה' : 'Cancel Edit'}
+                    </button>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 gap-1.5">
                   {clientPrizes.length === 0 ? (
@@ -633,7 +646,12 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                               </div>
                             </div>
                           </div>
-                          <button onClick={() => deletePrize(p.id)} className="text-gray-700 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={12}/></button>
+                          <div className="flex gap-1">
+                            {/* כפתור עריכה חדש */}
+                            <button onClick={() => handleEditPrize(p)} className="text-gray-700 hover:text-[#C2A353] p-1.5 transition-colors"><Edit2 size={12}/></button>
+                            {/* כפתור מחיקה מתוקן */}
+                            <button onClick={(e) => { e.stopPropagation(); deletePrize(p.id); }} className="text-gray-700 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={12}/></button>
+                          </div>
                         </div>
                       );
                     })
@@ -698,11 +716,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם' : 'Name'}</label>
-                    <input className="w-full bg-white/10 p-2 rounded-lg text-xs font-bold outline-none" value={pkgForm.nameHE} onChange={e => setPkgForm({...pkgForm, nameHE: e.target.value})} />
+                    <input className="w-full bg-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={pkgForm.nameHE} onChange={e => setPkgForm({...pkgForm, nameHE: e.target.value})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סכום' : 'Amount'}</label>
-                    <input className="w-full bg-white/10 p-2 rounded-lg text-xs font-bold outline-none" type="number" value={pkgForm.minAmount || ''} onChange={e => setPkgForm({...pkgForm, minAmount: Number(e.target.value)})} />
+                    <input className="w-full bg-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" type="number" value={pkgForm.minAmount || ''} onChange={e => setPkgForm({...pkgForm, minAmount: Number(e.target.value)})} />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תמונה' : 'Image'}</label>
@@ -763,9 +781,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       const matchedPrize = clientPrizes.find(p => String(p.id) === String(r.prizeId));
                       return (
                         <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
-                          <span className="text-[9px] font-bold truncate max-w-[120px]">
-                            {String(r.prizeId) === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? matchedPrize?.titleHE : 'Prize')}
-                          </span>
+                          <span className="text-[9px] font-bold truncate max-w-[120px]">{String(r.prizeId) === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? matchedPrize?.titleHE : 'Prize')}</span>
                           <div className="flex items-center gap-1.5">
                             <label className="text-[7px] text-gray-500 font-bold uppercase">{isHE ? 'כמות כרטיסים:' : 'TIX:'}</label>
                             <input type="number" className="w-12 bg-black/40 border border-[#C2A353]/30 p-1 rounded text-[10px] text-center font-black outline-none text-[#C2A353]" value={r.count} onChange={(e) => handleUpdateRuleCount(r.prizeId, Number(e.target.value))} />
@@ -777,22 +793,12 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 )}
                 <button onClick={onCreatePackage} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg">{isHE ? 'צור מסלול' : 'Create Route'}</button>
               </div>
-
               <div className="grid grid-cols-2 gap-2">
                 {clientPackages.map((pkg: any) => (
                   <div key={pkg.id} style={{ borderColor: `${pkg.color}40` }} className="p-3 glass-card rounded-xl border flex flex-col gap-2 relative group">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4>
-                      <button onClick={() => deletePackage(pkg.id)} className="text-red-500/20 hover:text-red-500 transition-all"><Trash2 size={10}/></button>
-                    </div>
+                    <div className="flex justify-between items-start"><h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4><button onClick={() => deletePackage(pkg.id)} className="text-red-500/20 hover:text-red-500 transition-all"><Trash2 size={10}/></button></div>
                     <p className="text-xs font-black italic">₪{pkg.minAmount.toLocaleString()}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {pkg.rules.map((r: any, i: number) => (
-                        <span key={i} className="text-[7px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-black uppercase text-gray-500">
-                           {r.prizeId === 'ALL' ? 'ALL' : 'ITEM'} x{r.count}
-                        </span>
-                      ))}
-                    </div>
+                    <div className="flex flex-wrap gap-1">{pkg.rules.map((r: any, i: number) => (<span key={i} className="text-[7px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-black uppercase text-gray-500">{r.prizeId === 'ALL' ? 'ALL' : 'ITEM'} x{r.count}</span>))}</div>
                   </div>
                 ))}
               </div>
@@ -801,66 +807,27 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
 
           {!auth.isSuperAdmin && activeTab === 'donors' && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-base font-black italic">{isHE ? 'תורמים רשומים' : 'Registered Donors'}</h2>
-                <button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button>
-              </div>
-
-              {/* הוספת תורם ידני - חדש! */}
+              <div className="flex justify-between items-center"><h2 className="text-base font-black italic">{isHE ? 'תורמים רשומים' : 'Registered Donors'}</h2><button onClick={downloadExcelTemplate} className="text-[9px] font-black gold-text flex items-center gap-1"><Download size={10}/> {isHE ? 'תבנית' : 'Template'}</button></div>
               <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
                 <h3 className="text-[10px] font-black uppercase text-gray-500 tracking-widest flex items-center gap-2"><Plus size={12}/> {isHE ? 'הוספת תורם ידני' : 'Add Manual Donor'}</h3>
                 <form onSubmit={handleManualDonorAdd} className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <input placeholder={isHE ? 'שם התורם' : 'Donor Name'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.name} onChange={e => setManualDonorForm({...manualDonorForm, name: e.target.value})} />
                   <input placeholder={isHE ? 'טלפון' : 'Phone'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.phone} onChange={e => setManualDonorForm({...manualDonorForm, phone: e.target.value})} />
                   <input type="number" placeholder={isHE ? 'סכום תרומה ₪' : 'Donation Amount ₪'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.amount} onChange={e => setManualDonorForm({...manualDonorForm, amount: e.target.value})} />
-                  <select 
-                      className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]"
-                      value={manualDonorForm.packageId}
-                      onChange={e => setManualDonorForm({...manualDonorForm, packageId: e.target.value})}
-                  >
-                      <option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>
-                      {clientPackages.map((pkg: any) => (
-                          <option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
-                      ))}
-                  </select>
-                  <button type="submit" className="md:col-span-2 luxury-gradient p-2.5 rounded-xl text-black font-black text-[10px] uppercase shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2">
-                      <UserCheck size={14}/> {isHE ? 'הוסף תורם' : 'Add Donor'}
-                  </button>
+                  <select className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.packageId} onChange={e => setManualDonorForm({...manualDonorForm, packageId: e.target.value})}><option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>{clientPackages.map((pkg: any) => (<option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>))}</select>
+                  <button type="submit" className="md:col-span-2 luxury-gradient p-2.5 rounded-xl text-black font-black text-[10px] uppercase shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2"><UserCheck size={14}/> {isHE ? 'הוסף תורם' : 'Add Donor'}</button>
                 </form>
               </div>
-              
-              <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5">
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls, .csv" 
-                  onChange={handleExcelImport} 
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10" 
-                />
-                {isImporting ? <RefreshCcw size={20} className="mx-auto text-[#C2A353] animate-spin" /> : <Upload size={20} className="mx-auto text-gray-600" />}
-                <p className="text-[10px] mt-1 font-bold text-gray-400">
-                  {isHE ? 'לחץ להעלאת קובץ אקסל (שיוך אוטומטי)' : 'Click to upload Excel (Auto-Map)'}
-                </p>
-              </div>
-
+              <div className="relative border-2 border-dashed rounded-xl p-6 text-center transition-all border-white/10 hover:border-[#C2A353] bg-white/5"><input type="file" accept=".xlsx, .xls, .csv" onChange={handleExcelImport} className="absolute inset-0 opacity-0 cursor-pointer z-10" />{isImporting ? <RefreshCcw size={20} className="mx-auto text-[#C2A353] animate-spin" /> : <Upload size={20} className="mx-auto text-gray-600" />}<p className="text-[10px] mt-1 font-bold text-gray-400">{isHE ? 'לחץ להעלאת קובץ אקסל (שיוך אוטומטי)' : 'Click to upload Excel (Auto-Map)'}</p></div>
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 text-xs">
-                {clientDonors.length === 0 ? (
-                  <p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>
-                ) : (
+                {clientDonors.length === 0 ? (<p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>) : (
                   clientDonors.map((d: Donor) => {
                     const assignedPkg = clientPackages.find((p: Package) => p.id === d.packageId);
                     return (
                         <div key={d.id} className="p-3 glass-card rounded-xl flex justify-between items-center border border-white/5 hover:border-white/10 transition-all">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-black gold-text border border-white/10">{d.name.charAt(0)}</div>
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold truncate">{d.name}</p>
-                                <div className="flex items-center gap-1">
-                                    <Activity size={8} className={assignedPkg ? 'text-green-500' : 'text-red-500'} />
-                                    <p className={`text-[7px] font-black uppercase italic ${assignedPkg ? 'text-gray-400' : 'text-red-500'}`}>
-                                        {assignedPkg ? (isHE ? assignedPkg.nameHE : assignedPkg.nameEN) : (isHE ? 'טרם שויך' : 'UNMAPPED')}
-                                    </p>
-                                </div>
-                            </div>
+                            <div className="min-w-0"><p className="text-[10px] font-bold truncate">{d.name}</p><div className="flex items-center gap-1"><Activity size={8} className={assignedPkg ? 'text-green-500' : 'text-red-500'} /><p className={`text-[7px] font-black uppercase italic ${assignedPkg ? 'text-gray-400' : 'text-red-500'}`}>{assignedPkg ? (isHE ? assignedPkg.nameHE : assignedPkg.nameEN) : (isHE ? 'טרם שויך' : 'UNMAPPED')}</p></div></div>
                         </div>
                         <p className="text-[10px] font-black gold-text italic tracking-tighter">₪{d.totalDonated.toLocaleString()}</p>
                         </div>
@@ -875,82 +842,24 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
              <div className="space-y-4">
                 <div className="flex justify-between items-center mb-2">
                   <h2 className="text-base font-black italic">{isHE ? 'הגדרות קמפיין' : 'Campaign Settings'}</h2>
-                  {/* כפתור השמירה החדש */}
-                  <button 
-                    onClick={handleSaveCampaignSettings}
-                    disabled={isSavingCampaign}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all shadow-lg ${
-                      showSaveSuccess ? 'bg-green-500 text-white' : 'luxury-gradient text-black hover:scale-105 active:scale-95'
-                    }`}
-                  >
-                    {isSavingCampaign ? <Loader2 size={14} className="animate-spin" /> : (showSaveSuccess ? <CheckCircle size={14} /> : <Save size={14} />)}
-                    {isSavingCampaign ? (isHE ? 'שומר...' : 'Saving...') : (showSaveSuccess ? (isHE ? 'נשמר בהצלחה!' : 'Saved!') : (isHE ? 'שמור הגדרות' : 'Save Settings'))}
-                  </button>
+                  <button onClick={handleSaveCampaignSettings} disabled={isSavingCampaign} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-[10px] uppercase transition-all shadow-lg ${showSaveSuccess ? 'bg-green-500 text-white' : 'luxury-gradient text-black hover:scale-105 active:scale-95'}`}>{isSavingCampaign ? <Loader2 size={14} className="animate-spin" /> : (showSaveSuccess ? <CheckCircle size={14} /> : <Save size={14} />)}{isSavingCampaign ? (isHE ? 'שומר...' : 'Saving...') : (showSaveSuccess ? (isHE ? 'נשמר בהצלחה!' : 'Saved!') : (isHE ? 'שמור הגדרות' : 'Save Settings'))}</button>
                 </div>
-
-                {/* --- איזור לינק ציבורי ייחודי - חדש! --- */}
                 <div className="bg-[#C2A353]/5 border border-[#C2A353]/20 rounded-2xl p-4 md:p-6 space-y-4 shadow-inner">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl luxury-gradient flex items-center justify-center text-black">
-                      <Layout size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-black italic uppercase">{isHE ? 'לינק קטלוג ציבורי' : 'Public Catalog Link'}</h3>
-                      <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">{isHE ? 'הלינק הייחודי לשיתוף הקמפיין שלך' : 'Your unique campaign sharing URL'}</p>
-                    </div>
-                  </div>
-                  
+                  <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl luxury-gradient flex items-center justify-center text-black"><Layout size={20} /></div><div><h3 className="text-xs font-black italic uppercase">{isHE ? 'לינק קטלוג ציבורי' : 'Public Catalog Link'}</h3><p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest">{isHE ? 'הלינק הייחודי לשיתוף הקמפיין שלך' : 'Your unique campaign sharing URL'}</p></div></div>
                   <div className="flex flex-col md:flex-row gap-2">
-                    <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between group">
-                      <code className="text-[10px] gold-text font-bold truncate">
-                        {`${window.location.origin}/#/catalog/${auth.clientId}`}
-                      </code>
-                      <button 
-                        onClick={() => copyClientPublicLink(auth.clientId)}
-                        className="p-1.5 hover:bg-white/5 rounded-lg text-gray-500 hover:text-[#C2A353] transition-colors"
-                        title={isHE ? 'העתק לינק' : 'Copy Link'}
-                      >
-                        <Copy size={14} />
-                      </button>
-                    </div>
-                    <button 
-                      onClick={() => openClientPublicLink(auth.clientId)}
-                      className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-                    >
-                      <ExternalLink size={14} className="gold-text" /> {isHE ? 'צפה בקטלוג' : 'Open'}
-                    </button>
+                    <div className="flex-1 bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between group"><code className="text-[10px] gold-text font-bold truncate">{`${window.location.origin}/#/catalog/${auth.clientId}`}</code><button onClick={() => copyClientPublicLink(auth.clientId)} className="p-1.5 hover:bg-white/5 rounded-lg text-gray-500 hover:text-[#C2A353] transition-colors" title={isHE ? 'העתק לינק' : 'Copy Link'}><Copy size={14} /></button></div>
+                    <button onClick={() => openClientPublicLink(auth.clientId)} className="px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-[10px] font-black uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-2"><ExternalLink size={14} className="gold-text" /> {isHE ? 'צפה בקטלוג' : 'Open'}</button>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם' : 'Name'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.nameHE} onChange={e => setLocalCampaign({...localCampaign, nameHE: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תאריך' : 'Draw Date'}</label>
-                    <input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.drawDate} onChange={e => setLocalCampaign({...localCampaign, drawDate: e.target.value})} />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לינק תרומות' : 'Donation URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.donationUrl} onChange={e => setLocalCampaign({...localCampaign, donationUrl: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לוגו URL' : 'Logo URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.logo} onChange={e => setLocalCampaign({...localCampaign, logo: e.target.value})} />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'באנר (תמונה) URL' : 'Banner (Image) URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.banner} onChange={e => setLocalCampaign({...localCampaign, banner: e.target.value})} />
-                  </div>
-                  <div className="space-y-1 md:col-span-2">
-                    <label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סרטון רקע URL' : 'Video Background URL'}</label>
-                    <input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.videoUrl || ''} onChange={e => setLocalCampaign({...localCampaign, videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" />
-                  </div>
+                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'שם' : 'Name'}</label><input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.nameHE} onChange={e => setLocalCampaign({...localCampaign, nameHE: e.target.value})} /></div>
+                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'תאריך' : 'Draw Date'}</label><input type="date" className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs font-bold outline-none focus:border-[#C2A353]" value={localCampaign.drawDate} onChange={e => setLocalCampaign({...localCampaign, drawDate: e.target.value})} /></div>
+                  <div className="space-y-1 md:col-span-2"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לינק תרומות' : 'Donation URL'}</label><input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.donationUrl} onChange={e => setLocalCampaign({...localCampaign, donationUrl: e.target.value})} /></div>
+                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'לוגו URL' : 'Logo URL'}</label><input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.logo} onChange={e => setLocalCampaign({...localCampaign, logo: e.target.value})} /></div>
+                  <div className="space-y-1"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'באנר (תמונה) URL' : 'Banner (Image) URL'}</label><input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.banner} onChange={e => setLocalCampaign({...localCampaign, banner: e.target.value})} /></div>
+                  <div className="space-y-1 md:col-span-2"><label className="text-[8px] font-black text-gray-500 uppercase">{isHE ? 'סרטון רקע URL' : 'Video Background URL'}</label><input className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] focus:border-[#C2A353]" value={localCampaign.videoUrl || ''} onChange={e => setLocalCampaign({...localCampaign, videoUrl: e.target.value})} placeholder="https://example.com/video.mp4" /></div>
                 </div>
-                <div className="pt-4 border-t border-white/5">
-                   <button onClick={() => {if(confirm(isHE ? 'לאפס הכל?' : 'Reset everything?')) resetData()}} className="text-gray-700 hover:text-red-500 text-[10px] font-bold uppercase transition-colors">{isHE ? 'איפוס כל נתוני הקמפיין' : 'Reset All Campaign Data'}</button>
-                </div>
+                <div className="pt-4 border-t border-white/5"><button onClick={() => {if(confirm(isHE ? 'לאפס הכל?' : 'Reset everything?')) resetData()}} className="text-gray-700 hover:text-red-500 text-[10px] font-bold uppercase transition-colors">{isHE ? 'איפוס כל נתוני הקמפיין' : 'Reset All Campaign Data'}</button></div>
              </div>
           )}
 
@@ -958,29 +867,16 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
             <div className="space-y-4">
               <h2 className="text-base font-black italic">{isHE ? 'מרכז הגרלות לייב' : 'Live Draw Center'}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {clientPrizes.length === 0 ? (
-                    <p className="col-span-2 text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים להגרלה' : 'No prizes available for drawing'}</p>
-                ) : (
+                {clientPrizes.length === 0 ? (<p className="col-span-2 text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים להגרלה' : 'No prizes available for drawing'}</p>) : (
                     clientPrizes.map((p: any) => (
                     <div key={p.id} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
                         <div className="flex gap-4 items-start mb-4">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0">
-                                <img src={p.media[0]?.url} className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p>
-                                <div className="flex items-center gap-2">
-                                    <TicketIcon size={10} className="text-blue-500" />
-                                    <span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===p.id).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span>
-                                </div>
-                            </div>
+                            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={p.media[0]?.url} className="w-full h-full object-cover" /></div>
+                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===p.id).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
                             <button onClick={() => copyPublicLink(p.id)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
                         </div>
                         <div className="flex gap-2">
-                            <Link to={`/draw/${p.id}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}>
-                              <Play size={12} fill="currentColor" />
-                              {isHE ? 'הפעל הגרלה' : 'Start Live Draw'}
-                            </Link>
+                            <Link to={`/draw/${p.id}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}><Play size={12} fill="currentColor" />{isHE ? 'הפעל הגרלה' : 'Start Live Draw'}</Link>
                             <Link to={`/live/${p.id}`} target="_blank" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"><ExternalLink size={16}/></Link>
                         </div>
                     </div>
