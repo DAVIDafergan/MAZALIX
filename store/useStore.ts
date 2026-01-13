@@ -58,7 +58,7 @@ export function useStore() {
           ? data.filter((item: any) => (item.clientId === auth.clientId))
           : data;
 
-      if (pRes.ok) setPrizes(filterByClient(await pRes.json()).sort((a: any, b: any) => a.order - b.order));
+      if (pRes.ok) setPrizes(filterByClient(await pRes.ok ? await pRes.json() : []).sort((a: any, b: any) => a.order - b.order));
       if (pkgRes.ok) setPackages(filterByClient(await pkgRes.json()));
       if (dRes.ok) setDonors(filterByClient(await dRes.json()));
       if (tRes.ok) setTickets(filterByClient(await tRes.json()));
@@ -268,35 +268,37 @@ export function useStore() {
 
   const deleteDonor = async (id: string) => {
     try {
-      await fetch(`${API_URL}/api/donors/${id}`, { method: 'DELETE' });
-      // עדכון ה-State ללא ריענון
-      setDonors(prev => prev.filter(d => (d.id !== id && (d as any)._id !== id)));
-      setTickets(prev => prev.filter(t => (t.donorId !== id)));
+      const res = await fetch(`${API_URL}/api/donors/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDonors(prev => prev.filter(d => (d.id !== id && (d as any)._id !== id)));
+        setTickets(prev => prev.filter(t => (t.donorId !== id)));
+      }
     } catch (e) { console.error(e); }
   };
 
   const assignPackageToDonor = async (donorId: string, packageId: string) => {
     try {
-      await fetch(`${API_URL}/api/donors/${donorId}`, { 
+      const res = await fetch(`${API_URL}/api/donors/${donorId}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ packageId }) 
       });
       
-      // עדכון ה-State מיידית כדי שייעלם מהחריגות
-      setDonors(prev => prev.map(d => (d.id === donorId || (d as any)._id === donorId) ? { ...d, packageId } : d));
-      
-      // טעינה מחדש של הכרטיסים והנתונים כדי לסנכרן זכאויות
-      fetchAllData(); 
+      if (res.ok) {
+        setDonors(prev => prev.map(d => (d.id === donorId || (d as any)._id === donorId) ? { ...d, packageId } : d));
+        // ריענון נתונים כדי שכרטיסים ייווצרו בשרת ויימשכו לכאן
+        setTimeout(() => fetchAllData(), 500);
+      }
     } catch (e) { console.error(e); }
   };
 
   const performDraw = async (prizeId: string) => {
-    const prizeTickets = tickets.filter(t => (t.prizeId === prizeId));
+    const pId = prizeId;
+    const prizeTickets = tickets.filter(t => (t.prizeId === pId));
     if (prizeTickets.length === 0) return null;
     const winner = donors.find(d => (d.id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId || (d as any)._id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId));
     if (winner) {
-      await updatePrize(prizeId, { status: DrawStatus.DRAWN, winnerId: winner.id || (winner as any)._id });
+      await updatePrize(pId, { status: DrawStatus.DRAWN, winnerId: winner.id || (winner as any)._id });
       return winner;
     }
     return null;
