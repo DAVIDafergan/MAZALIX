@@ -18,38 +18,48 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   const [winner, setWinner] = useState<Donor | null>(null);
   const [randomName, setRandomName] = useState('');
   
-  // תיקון קריטי: המרת ה-ID למחרוזת לצורך השוואה תקינה
-  const prize = prizes.find((p: Prize) => String(p.id) === String(prizeId));
-  const prizeTickets = tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
-  const participantIds = Array.from(new Set(prizeTickets.map((t: any) => t.donorId)));
-  const participants = donors.filter((d: Donor) => participantIds.includes(d.id));
+  // תיקון זיהוי פרס: תמיכה ב-id וגם ב-_id מה-DB
+  const prize = prizes.find((p: any) => String(p.id || p._id) === String(prizeId));
+  
+  // יצירת "בריכת שמות" שבה כל כרטיס הוא כניסה - אם לתורם יש 3 כרטיסים, שמו יופיע 3 פעמים בבריכה
+  const namePool = useMemo(() => {
+    const prizeTickets = tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
+    return prizeTickets.map((t: any) => {
+      const donor = donors.find((d: any) => String(d.id || d._id) === String(t.donorId));
+      return donor?.name || '...';
+    });
+  }, [tickets, donors, prizeId]);
+
+  const prizeTicketsCount = tickets.filter((t: any) => String(t.prizeId) === String(prizeId)).length;
 
   // Sync with winner if already drawn
   useEffect(() => {
     if (prize?.status === DrawStatus.DRAWN && prize.winnerId) {
-       const w = donors.find((d: Donor) => d.id === prize.winnerId);
+       const w = donors.find((d: any) => String(d.id || d._id) === String(prize.winnerId));
        if (w) setWinner(w);
     }
   }, [prize, donors]);
 
   useEffect(() => {
     let interval: any;
-    if (isDrawing && participants.length > 0) {
+    if (isDrawing && namePool.length > 0) {
       interval = setInterval(() => {
-        const randIndex = Math.floor(Math.random() * participants.length);
-        setRandomName(participants[randIndex]?.name || '...');
+        const randIndex = Math.floor(Math.random() * namePool.length);
+        setRandomName(namePool[randIndex]);
       }, 50);
     }
     return () => clearInterval(interval);
-  }, [isDrawing, participants]);
+  }, [isDrawing, namePool]);
 
-  const handleStartDraw = () => {
+  const handleStartDraw = async () => {
     if (publicOnly || isDrawing) return;
     setIsDrawing(true);
     setWinner(null);
-    setTimeout(() => {
-      // ביצוע ההגרלה ב-Store
-      const winningDonor = performDraw(prizeId!);
+    
+    // אנימציה של 5 שניות
+    setTimeout(async () => {
+      // ביצוע ההגרלה ב-Store (פונקציה אסינכרונית)
+      const winningDonor = await performDraw(prizeId!);
       setIsDrawing(false);
       setWinner(winningDonor);
     }, 5000);
@@ -100,14 +110,14 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
                   <div className="space-y-8">
                     <div className="space-y-2">
                        <p className="text-gray-500 font-black uppercase text-xs tracking-widest">{isHE ? 'כרטיסים בהגרלה' : 'Total Entries'}</p>
-                       <p className="text-6xl font-black gold-text italic">{prizeTickets.length}</p>
+                       <p className="text-6xl font-black gold-text italic">{prizeTicketsCount}</p>
                     </div>
                     {publicOnly ? (
                       <p className="text-gray-400 font-bold italic animate-pulse">{isHE ? 'ממתין למנהל המערכת...' : 'Waiting for Admin...'}</p>
                     ) : (
                       <button 
                         onClick={handleStartDraw} 
-                        disabled={prizeTickets.length === 0}
+                        disabled={prizeTicketsCount === 0}
                         className="px-12 py-5 luxury-gradient text-black text-xl font-black rounded-2xl shadow-[0_20px_50px_rgba(194,163,83,0.3)] hover:scale-110 active:scale-95 transition-all uppercase italic disabled:opacity-50 disabled:grayscale"
                       >
                         {isHE ? 'הפעל הגרלה' : 'Start Draw'}
