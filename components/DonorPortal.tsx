@@ -55,7 +55,10 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           <div className="space-y-4">
             {multipleAccounts.map((donor) => {
               const client = clients.find((c: any) => c.id === donor.clientId);
-              const cName = client?.campaign?.nameHE || client?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
+              // תיקון לבקשתך: לוקח את השם שהמנהל הגדיר בהגדרות הקמפיין בלבד
+              const cName = isHE ? client?.campaign?.nameHE : client?.campaign?.nameEN;
+              const finalCampaignName = cName || (isHE ? 'קמפיין ללא שם' : 'Unnamed Campaign');
+              
               return (
                 <button 
                   key={donor.id}
@@ -63,7 +66,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
                   className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between hover:border-[#C2A353] hover:bg-white/10 transition-all group"
                 >
                   <div className="text-right">
-                    <p className="text-[#C2A353] font-black text-xs uppercase tracking-tighter">{cName}</p>
+                    <p className="text-[#C2A353] font-black text-xs uppercase tracking-tighter">{finalCampaignName}</p>
                     <p className="text-white font-bold text-lg">{donor.name}</p>
                   </div>
                   <ChevronRight className="text-gray-600 group-hover:text-[#C2A353] transition-colors" />
