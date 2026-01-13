@@ -16,6 +16,7 @@ export interface PrizeMedia {
 
 export interface Prize {
   id: string;
+  _id?: string; // תמיכה במזהה MongoDB כדי שהנתונים לא יהיו ריקים
   clientId: string;
   titleHE: string;
   titleEN: string;
@@ -37,6 +38,7 @@ export interface PackageRule {
 
 export interface Package {
   id: string;
+  _id?: string; // תמיכה במזהה MongoDB
   clientId: string;
   nameHE: string;
   nameEN: string;
@@ -49,6 +51,7 @@ export interface Package {
 
 export interface Donor {
   id: string;
+  _id?: string; // תמיכה במזהה MongoDB
   clientId: string;
   name: string;
   phone: string;
@@ -59,6 +62,7 @@ export interface Donor {
 
 export interface Ticket {
   id: string;
+  _id?: string; // תמיכה במזהה MongoDB
   clientId: string;
   donorId: string;
   prizeId: string;
@@ -77,6 +81,7 @@ export interface CampaignSettings {
 
 export interface Client {
   id: string;
+  _id?: string; // תמיכה במזהה MongoDB
   username: string;
   password?: string;
   displayName: string;
