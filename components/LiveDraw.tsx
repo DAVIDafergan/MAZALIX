@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Prize, Donor, Language, DrawStatus } from '../types';
 import { Trophy, Star, Sparkles, Share2, ArrowLeft, Users } from 'lucide-react';
