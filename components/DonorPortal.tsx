@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Donor, Language, Ticket, Prize, Package, PackageRule } from '../types';
+import { Donor, Language, Ticket, Prize, Package, PackageRule, Client } from '../types';
 import { Smartphone, Ticket as TicketIcon, User, LogOut, ChevronRight, Activity, Award, Gift, Sparkles, ShieldCheck, Layout } from 'lucide-react';
 
 interface PortalProps {
@@ -13,14 +13,21 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
   
   const [phone, setPhone] = useState('');
   const [loggedInDonor, setLoggedInDonor] = useState<Donor | null>(null);
+  const [multipleAccounts, setMultipleAccounts] = useState<Donor[]>([]); // לאחסון מספר חשבונות אם נמצאו
   const [error, setError] = useState('');
 
   const handleLogin = () => {
     const cleanInput = phone.replace(/\D/g, '');
-    const found = donors.find((d: Donor) => d.phone.replace(/\D/g, '') === cleanInput);
+    const foundMatches = donors.filter((d: Donor) => d.phone.replace(/\D/g, '') === cleanInput);
     
-    if (found) {
-      setLoggedInDonor(found);
+    if (foundMatches.length > 1) {
+      // אם נמצאו מספר קמפיינים לאותו מספר
+      setMultipleAccounts(foundMatches);
+      setError('');
+    } else if (foundMatches.length === 1) {
+      // אם נמצא קמפיין אחד בלבד
+      setLoggedInDonor(foundMatches[0]);
+      setMultipleAccounts([]);
       setError('');
     } else {
       setError(isHE ? 'תורם לא נמצא במערכת.' : 'Donor not found.');
@@ -35,6 +42,45 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
       setLoggedInDonor(dummy);
     }
   };
+
+  // מסך בחירת קמפיין (מוצג רק אם יש כפל חשבונות)
+  if (multipleAccounts.length > 0 && !loggedInDonor) {
+    return (
+      <div className="max-w-md mx-auto py-20 md:py-32 space-y-10 animate-fade-in px-4">
+        <div className="glass-card p-10 rounded-[2.5rem] border-2 gold-border shadow-2xl text-center space-y-8 relative overflow-hidden">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-black tracking-tighter italic leading-none">{isHE ? 'בחר קמפיין' : 'Select Campaign'}</h1>
+            <p className="text-gray-500 font-black text-[9px] uppercase tracking-[0.3em]">{isHE ? 'נמצאו מספר חשבונות המשויכים למספר זה' : 'Multiple accounts found for this number'}</p>
+          </div>
+          <div className="space-y-4">
+            {multipleAccounts.map((donor) => {
+              const client = clients.find((c: any) => c.id === donor.clientId);
+              const cName = client?.campaign?.nameHE || client?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
+              return (
+                <button 
+                  key={donor.id}
+                  onClick={() => setLoggedInDonor(donor)}
+                  className="w-full p-5 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-between hover:border-[#C2A353] hover:bg-white/10 transition-all group"
+                >
+                  <div className="text-right">
+                    <p className="text-[#C2A353] font-black text-xs uppercase tracking-tighter">{cName}</p>
+                    <p className="text-white font-bold text-lg">{donor.name}</p>
+                  </div>
+                  <ChevronRight className="text-gray-600 group-hover:text-[#C2A353] transition-colors" />
+                </button>
+              );
+            })}
+            <button 
+              onClick={() => setMultipleAccounts([])}
+              className="text-gray-500 text-[10px] font-black uppercase tracking-widest pt-4 hover:text-white transition-colors"
+            >
+              {isHE ? 'חזרה לחיפוש' : 'Back to search'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!loggedInDonor) {
     return (
@@ -98,6 +144,8 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
   // 4. זיהוי שם הקמפיין הספציפי שבו התורם רשום
   const matchedClient = clients.find((c: any) => c.id === loggedInDonor.clientId);
   const campaignName = matchedClient?.campaign?.nameHE || matchedClient?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
+  // לינק לשדרוג מהגדרות הקמפיין
+  const upgradeLink = matchedClient?.campaign?.donationUrl || '#';
 
   return (
     <div className="space-y-8 md:space-y-12 pb-20 animate-fade-in px-2 max-w-4xl mx-auto">
@@ -118,7 +166,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
             </div>
             <div className="flex gap-4 items-center">
               <span className="text-gray-500 font-black uppercase tracking-widest text-[8px] md:text-[10px]">{loggedInDonor.phone}</span>
-              <button onClick={() => setLoggedInDonor(null)} className="text-red-500/50 text-[8px] font-black uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-1"><LogOut size={10}/> {isHE ? 'יציאה' : 'Exit'}</button>
+              <button onClick={() => { setLoggedInDonor(null); setMultipleAccounts([]); }} className="text-red-500/50 text-[8px] font-black uppercase tracking-widest hover:text-red-500 transition-all flex items-center gap-1"><LogOut size={10}/> {isHE ? 'יציאה' : 'Exit'}</button>
             </div>
           </div>
         </div>
@@ -181,7 +229,11 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
            <h4 className="text-2xl md:text-4xl font-black tracking-tighter leading-none italic">{isHE ? 'רוצה להגדיל סיכויים?' : 'Want More Luck?'}</h4>
            <p className="font-bold text-black/60 max-w-lg text-[10px] md:text-xs leading-relaxed italic">{isHE ? 'שדרוג התרומה יעניק לך אלפי כרטיסי הגרלה נוספים לכל המתנות בבת אחת!' : 'Upgrading now adds thousands of tokens to your collection instantly!'}</p>
         </div>
-        <button className="px-8 py-3 bg-black text-[#C2A353] font-black text-sm rounded-xl shadow-xl hover:scale-105 transition-all relative z-10 uppercase italic tracking-tighter">
+        {/* הכפתור מוביל ללינק שהוגדר בקמפיין אליו רשום המשתמש */}
+        <button 
+          onClick={() => window.open(upgradeLink, '_blank')}
+          className="px-8 py-3 bg-black text-[#C2A353] font-black text-sm rounded-xl shadow-xl hover:scale-105 transition-all relative z-10 uppercase italic tracking-tighter"
+        >
            {isHE ? 'שדרוג עכשיו' : 'Upgrade VIP'}
         </button>
       </div>
