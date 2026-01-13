@@ -75,9 +75,10 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
   }
 
   // --- שליפת נתוני התורם והקמפיין שלו ---
+  // סינון כרטיסים: רק אלו ששייכים ל-ID של התורם המחובר
   const donorTickets = tickets.filter((t: Ticket) => t.donorId === loggedInDonor.id);
   
-  // מציאת הלקוח (הקמפיין) שאליו התורם רשום
+  // מציאת הלקוח (הקמפיין) שאליו התורם רשום לפי ה-clientId שלו
   const matchedClient = clients.find((c: any) => c.id === loggedInDonor.clientId);
   const campaignName = matchedClient?.campaign?.nameHE || matchedClient?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
 
@@ -93,7 +94,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           </div>
           <div className="space-y-1">
             <h2 className="text-2xl md:text-4xl font-black tracking-tighter italic leading-none">{loggedInDonor.name}</h2>
-            {/* הצגת שם הקמפיין בו הוא רשום */}
+            {/* הצגת שם הקמפיין בו הוא רשום באופן דינמי */}
             <div className="flex items-center gap-2 text-[#C2A353] py-1">
               <Layout size={12} />
               <span className="text-[10px] md:text-xs font-black uppercase tracking-tight italic">{campaignName}</span>
@@ -112,6 +113,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           </div>
           <div className="space-y-1">
              <p className="text-gray-600 text-[7px] md:text-[9px] font-black uppercase tracking-[0.3em]">{isHE ? 'כרטיסי מזל' : 'Luck Tokens'}</p>
+             {/* מציג רק את כמות הכרטיסים של התורם הספציפי */}
              <p className="text-2xl md:text-4xl font-black tracking-tighter">{donorTickets.length}</p>
           </div>
         </div>
@@ -127,10 +129,14 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          {/* סינון פרסים שרלוונטיים רק לקמפיין של התורם או שיש לו כרטיסים אליהם */}
+          {/* סינון פרסים: מציג רק פרסים שיש לתורם כרטיסים אליהם ומחשב כמות לכל פרס בנפרד */}
           {prizes.map((p: Prize) => {
+            // ספירה של כמות הכרטיסים שיש לתורם הספציפי לפרס הספציפי הזה
             const count = donorTickets.filter((t: any) => t.prizeId === p.id).length;
+            
+            // אם אין לתורם כרטיסים לפרס הזה, לא מציגים אותו בכלל
             if (count === 0) return null;
+            
             return (
               <div key={p.id} className="glass-card rounded-2xl p-3 md:p-5 flex flex-col gap-3 border-l-4 gold-border group hover:bg-white/5 transition-all cursor-pointer relative overflow-hidden">
                 <div className="flex items-center gap-3">
