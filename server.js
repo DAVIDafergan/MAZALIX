@@ -70,9 +70,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (client) {
       res.json({ 
         success: true, 
-        token: 'client-token-' + client.id, 
+        token: 'client-token-' + (client.id || client._id), 
         isSuperAdmin: false,
-        clientId: client.id 
+        clientId: client.id || client._id 
       });
     } else {
       res.status(401).json({ success: false, message: "פרטי התחברות שגויים" });
@@ -153,8 +153,12 @@ app.put('/api/:collection/:id', async (req, res) => {
   try {
     const model = getModel(collection);
     if (!model) return res.status(404).send({ message: "Collection not found" });
+    
+    // חיפוש חסין לפי id (מחרוזת) או _id (אובייקט מונגו)
+    const query = { $or: [{ id: id }, { _id: mongoose.isValidObjectId(id) ? id : null }] };
+    
     const updatedDoc = await model.findOneAndUpdate(
-      { id: id },
+      query,
       { $set: req.body },
       { new: true }
     );
@@ -169,8 +173,17 @@ app.delete('/api/:collection/:id', async (req, res) => {
   try {
     const model = getModel(collection);
     if (!model) return res.status(404).send({ message: "Collection not found" });
-    await model.findOneAndDelete({ id: id });
-    res.send({ message: "Deleted" });
+    
+    // חיפוש חסין למחיקה סופית מהמסד
+    const query = { $or: [{ id: id }, { _id: mongoose.isValidObjectId(id) ? id : null }] };
+    
+    const deletedDoc = await model.findOneAndDelete(query);
+    
+    if (deletedDoc) {
+      res.send({ message: "Deleted successfully", deletedId: id });
+    } else {
+      res.status(404).send({ message: "Record not found" });
+    }
   } catch (e) {
     res.status(500).send(e);
   }
