@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Donor, Language, Ticket, Prize } from '../types';
+import { Donor, Language, Ticket, Prize, Package, PackageRule } from '../types';
 import { Smartphone, Ticket as TicketIcon, User, LogOut, ChevronRight, Activity, Award, Gift, Sparkles, ShieldCheck, Layout } from 'lucide-react';
 
 interface PortalProps {
@@ -7,17 +7,15 @@ interface PortalProps {
 }
 
 const DonorPortal: React.FC<PortalProps> = ({ store }) => {
-  // הוספת clients ל-Destructuring כדי לזהות את שם הקמפיין
-  const { donors, tickets, prizes, lang, clients = [] } = store;
+  // הוספת packages למבנה הנתונים כדי לחשב זכאות לפי מסלול
+  const { donors, tickets, prizes, lang, clients = [], packages = [] } = store;
   const isHE = lang === Language.HE;
   
   const [phone, setPhone] = useState('');
   const [loggedInDonor, setLoggedInDonor] = useState<Donor | null>(null);
   const [error, setError] = useState('');
 
-  // פונקציית חיפוש תורם משופרת
   const handleLogin = () => {
-    // ניקוי המספר מתווים שאינם ספרות לחיפוש מדויק
     const cleanInput = phone.replace(/\D/g, '');
     const found = donors.find((d: Donor) => d.phone.replace(/\D/g, '') === cleanInput);
     
@@ -33,7 +31,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
     if (donors.length > 0) {
       setLoggedInDonor(donors[0]);
     } else {
-      const dummy: Donor = { id: 'demo-vip', name: isHE ? 'תורם פלטינום' : 'VIP Donor', phone: '050-XXXXXXX', email: 'vip@luxury.com', totalDonated: 12500 };
+      const dummy: Donor = { id: 'demo-vip', clientId: '1', name: isHE ? 'תורם פלטינום' : 'VIP Donor', phone: '050-XXXXXXX', email: 'vip@luxury.com', totalDonated: 12500, packageId: 'p1' };
       setLoggedInDonor(dummy);
     }
   };
@@ -74,11 +72,30 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
     );
   }
 
-  // --- שליפת נתוני התורם והקמפיין שלו ---
-  // סינון כרטיסים: רק אלו ששייכים ל-ID של התורם המחובר
-  const donorTickets = tickets.filter((t: Ticket) => t.donorId === loggedInDonor.id);
+  // --- לוגיקת חישוב כרטיסים לפי חבילה (Package) ---
   
-  // מציאת הלקוח (הקמפיין) שאליו התורם רשום לפי ה-clientId שלו
+  // 1. מציאת החבילה של התורם
+  const donorPackage = packages.find((p: Package) => p.id === loggedInDonor.packageId);
+
+  // 2. פונקציה לחישוב כמה כרטיסים יש לתורם עבור פרס ספציפי לפי חוקי החבילה
+  const getTicketCountForPrize = (prizeId: string) => {
+    if (!donorPackage) return 0;
+    
+    let count = 0;
+    donorPackage.rules.forEach((rule: PackageRule) => {
+      if (rule.prizeId === 'ALL' || rule.prizeId === prizeId) {
+        count += rule.count;
+      }
+    });
+    return count;
+  };
+
+  // 3. חישוב סה"כ כרטיסי מזל (סכום כל הכרטיסים בכל ההגרלות שהתורם משתתף בהן)
+  const totalLuckTokens = prizes.reduce((sum: number, p: Prize) => {
+    return sum + getTicketCountForPrize(p.id);
+  }, 0);
+
+  // 4. זיהוי שם הקמפיין הספציפי שבו התורם רשום
   const matchedClient = clients.find((c: any) => c.id === loggedInDonor.clientId);
   const campaignName = matchedClient?.campaign?.nameHE || matchedClient?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
 
@@ -94,7 +111,7 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           </div>
           <div className="space-y-1">
             <h2 className="text-2xl md:text-4xl font-black tracking-tighter italic leading-none">{loggedInDonor.name}</h2>
-            {/* הצגת שם הקמפיין בו הוא רשום באופן דינמי */}
+            {/* הצגת שם הקמפיין שבו התורם רשום בלבד */}
             <div className="flex items-center gap-2 text-[#C2A353] py-1">
               <Layout size={12} />
               <span className="text-[10px] md:text-xs font-black uppercase tracking-tight italic">{campaignName}</span>
@@ -113,8 +130,8 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           </div>
           <div className="space-y-1">
              <p className="text-gray-600 text-[7px] md:text-[9px] font-black uppercase tracking-[0.3em]">{isHE ? 'כרטיסי מזל' : 'Luck Tokens'}</p>
-             {/* מציג רק את כמות הכרטיסים של התורם הספציפי */}
-             <p className="text-2xl md:text-4xl font-black tracking-tighter">{donorTickets.length}</p>
+             {/* מציג את סך כל הכרטיסים המחושבים מהחבילה שלו בלבד */}
+             <p className="text-2xl md:text-4xl font-black tracking-tighter">{totalLuckTokens.toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -129,12 +146,12 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-          {/* סינון פרסים: מציג רק פרסים שיש לתורם כרטיסים אליהם ומחשב כמות לכל פרס בנפרד */}
+          {/* מעבר על כל הפרסים וחישוב זכאות לכל אחד בנפרד */}
           {prizes.map((p: Prize) => {
-            // ספירה של כמות הכרטיסים שיש לתורם הספציפי לפרס הספציפי הזה
-            const count = donorTickets.filter((t: any) => t.prizeId === p.id).length;
+            // קבלת כמות הכרטיסים הספציפית שהחבילה מקנה לפרס זה
+            const count = getTicketCountForPrize(p.id);
             
-            // אם אין לתורם כרטיסים לפרס הזה, לא מציגים אותו בכלל
+            // אם החבילה לא מקנה כרטיסים לפרס זה, הוא לא יוצג לתורם
             if (count === 0) return null;
             
             return (
@@ -147,7 +164,8 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
                     <h4 className="font-black text-[10px] md:text-xs tracking-tight leading-tight group-hover:gold-text transition-colors truncate italic">{isHE ? p.titleHE : p.titleEN}</h4>
                     <div className="flex items-center gap-1.5 mt-1">
                        <TicketIcon size={10} className="gold-text" />
-                       <span className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">{count} {isHE ? 'כרטיסים' : 'Tix'}</span>
+                       {/* כמות הכרטיסים האישית לפרס זה */}
+                       <span className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">{count.toLocaleString()} {isHE ? 'כרטיסים' : 'Tix'}</span>
                     </div>
                   </div>
                 </div>
