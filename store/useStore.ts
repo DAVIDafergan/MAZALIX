@@ -220,8 +220,21 @@ export function useStore() {
   };
 
   const deletePackage = async (id: string) => {
-    try { await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); } catch (e) { console.error(e); }
-    setPackages(prev => prev.filter(p => p.id !== id));
+    try { 
+      await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); 
+      setPackages(prev => prev.filter(p => p.id !== id));
+    } catch (e) { console.error(e); }
+  };
+
+  const updatePackage = async (id: string, updates: Partial<Package>) => {
+    try {
+      await fetch(`${API_URL}/api/packages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      setPackages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    } catch (e) { console.error(e); }
   };
 
   const addDonor = async (donor: Donor) => {
@@ -253,6 +266,14 @@ export function useStore() {
     } catch (e) { console.error(e); }
   };
 
+  const deleteDonor = async (id: string) => {
+    try {
+      await fetch(`${API_URL}/api/donors/${id}`, { method: 'DELETE' });
+      setDonors(prev => prev.filter(d => d.id !== id));
+      setTickets(prev => prev.filter(t => t.donorId !== id)); // ניקוי כרטיסים משויכים ב-State
+    } catch (e) { console.error(e); }
+  };
+
   const assignPackageToDonor = async (donorId: string, packageId: string) => {
     const pkg = packages.find(p => p.id === packageId);
     if (!pkg) return;
@@ -281,6 +302,6 @@ export function useStore() {
   const unmappedDonors = useMemo(() => donors.filter(d => !d.packageId), [donors]);
 
   return {
-    lang, toggleLanguage, auth, login, logout, clients, addClient, campaign, updateCampaign, prizes, packages, donors, tickets, addPrize, deletePrize, updatePrize, addPackage, deletePackage, addDonor, performDraw, resetData, unmappedDonors, assignPackageToDonor
+    lang, toggleLanguage, auth, login, logout, clients, addClient, campaign, updateCampaign, prizes, packages, donors, tickets, addPrize, deletePrize, updatePrize, addPackage, deletePackage, updatePackage, addDonor, deleteDonor, performDraw, resetData, unmappedDonors, assignPackageToDonor
   };
 }
