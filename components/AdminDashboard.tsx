@@ -14,11 +14,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const isHE = lang === Language.HE;
   
   // --- סינון נתונים לפי לקוח מחובר ---
-  const clientPrizes = auth.isSuperAdmin ? prizes : prizes.filter((p: any) => p.clientId === auth.clientId);
-  const clientPackages = auth.isSuperAdmin ? packages : packages.filter((p: any) => p.clientId === auth.clientId);
-  const clientDonors = auth.isSuperAdmin ? donors : donors.filter((d: any) => d.clientId === auth.clientId);
-  const clientTickets = auth.isSuperAdmin ? tickets : tickets.filter((t: any) => t.clientId === auth.clientId);
-  const clientUnmapped = auth.isSuperAdmin ? unmappedDonors : unmappedDonors.filter((d: any) => d.clientId === auth.clientId);
+  const clientPrizes = auth.isSuperAdmin ? prizes : prizes.filter((p: any) => String(p.clientId) === String(auth.clientId));
+  const clientPackages = auth.isSuperAdmin ? packages : packages.filter((p: any) => String(p.clientId) === String(auth.clientId));
+  const clientDonors = auth.isSuperAdmin ? donors : donors.filter((d: any) => String(d.clientId) === String(auth.clientId));
+  const clientTickets = auth.isSuperAdmin ? tickets : tickets.filter((t: any) => String(t.clientId) === String(auth.clientId));
+  const clientUnmapped = auth.isSuperAdmin ? unmappedDonors : unmappedDonors.filter((d: any) => String(d.clientId) === String(auth.clientId));
 
   const [loginForm, setLoginForm] = useState({ user: '', pass: '' });
   const [activeTab, setActiveTab] = useState<'prizes' | 'routes' | 'donors' | 'live' | 'campaign' | 'super' | 'alerts' | 'summary'>('prizes');
@@ -354,7 +354,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
     } else if (direction === 'down' && idx < clientPrizes.length - 1) {
       [newPrizes[idx], newPrizes[idx + 1]] = [newPrizes[idx + 1], newPrizes[idx]];
     }
-    newPrizes.forEach((p, i) => updatePrize(p.id || (p as any)._id, { order: i }));
+    newPrizes.forEach((p, i) => updatePrize(String(p.id || (p as any)._id), { order: i }));
   };
 
   const onCreatePrize = async () => {
@@ -531,7 +531,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                         {clientPrizes.map((p: Prize) => {
                           // תיקון זיהוי מזהה חסין
                           const pId = p.id || (p as any)._id;
-                          // תיקון השוואת מזהים לכרטיסים
+                          // תיקון השוואת מזהים לכרטיסים לחישוב מול השרת
                           const count = clientTickets.filter((t: any) => String(t.prizeId) === String(pId)).length;
                           const ratio = clientTickets.length > 0 ? ((count / clientTickets.length) * 100).toFixed(1) : '0';
                           return (

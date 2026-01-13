@@ -29,36 +29,35 @@ export function useStore() {
         fetch(`${API_URL}/api/packages`),
         fetch(`${API_URL}/api/donors`),
         fetch(`${API_URL}/api/tickets`),
-        fetch(`${API_URL}/api/settings`) // שאיבת הגדרות מהטבלה החדשה
+        fetch(`${API_URL}/api/settings`) 
       ]);
       
       if (cRes.ok) {
         const dbClients = await cRes.json();
         setClients(dbClients);
         
-        // שליפת הגדרות קמפיין מתוך אובייקט הלקוח המחובר
         if (auth.clientId && !auth.isSuperAdmin) {
-          const currentClient = dbClients.find((c: any) => (c.id === auth.clientId || c._id === auth.clientId));
+          const currentClient = dbClients.find((c: any) => String(c.id || c._id) === String(auth.clientId));
           if (currentClient?.campaign) {
             setCampaign(currentClient.campaign);
           }
         }
       }
 
-      // אם המשתמש הוא מנהל על, נטען את ההגדרות הגלובליות מהמסד
       if (auth.isSuperAdmin && sRes.ok) {
         const globalSettings = await sRes.json();
         if (Array.isArray(globalSettings) && globalSettings.length > 0) {
-          setCampaign(globalSettings[0]); // ההגדרה הראשונה במסד היא הקובעת
+          setCampaign(globalSettings[0]); 
         }
       }
       
+      // סינון חסין לפי clientId
       const filterByClient = (data: any[]) => 
         auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin 
-          ? data.filter((item: any) => (item.clientId === auth.clientId))
+          ? data.filter((item: any) => String(item.clientId) === String(auth.clientId))
           : data;
 
-      if (pRes.ok) setPrizes(filterByClient(await pRes.ok ? await pRes.json() : []).sort((a: any, b: any) => a.order - b.order));
+      if (pRes.ok) setPrizes(filterByClient(await pRes.json()).sort((a: any, b: any) => a.order - b.order));
       if (pkgRes.ok) setPackages(filterByClient(await pkgRes.json()));
       if (dRes.ok) setDonors(filterByClient(await dRes.json()));
       if (tRes.ok) setTickets(filterByClient(await tRes.json()));
@@ -72,7 +71,6 @@ export function useStore() {
     localStorage.setItem(`${LS_KEY}_auth`, JSON.stringify(auth));
   }, [auth]);
 
-  // פונקציית התחברות מתוקנת שקולטת clientId מהשרת
   const login = async (username: string, pass: string) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/login`, {
@@ -84,14 +82,11 @@ export function useStore() {
       const data = await response.json();
 
       if (data.success) {
-        // שמירת הטוקן עבור בקשות API מוגנות
         localStorage.setItem(`${LS_KEY}_admin_token`, data.token);
-        
-        // עדכון ה-State עם ה-clientId שחזר מהשרת (מונע undefined)
         setAuth({ 
           isLoggedIn: true, 
           isSuperAdmin: data.isSuperAdmin, 
-          clientId: data.clientId 
+          clientId: String(data.clientId) 
         });
         return true;
       }
@@ -99,10 +94,9 @@ export function useStore() {
       console.error("Login API error:", e);
     }
 
-    // Fallback למקרה של לקוחות רגילים שעדיין לא בשרת (תאימות לאחור)
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
-      setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: client.id || (client as any)._id });
+      setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: String(client.id || (client as any)._id) });
       return true;
     }
     return false;
@@ -146,7 +140,6 @@ export function useStore() {
     setLang(prev => prev === Language.HE ? Language.EN : Language.HE);
   };
 
-  // פונקציית עדכון קמפיין משופרת
   const updateCampaign = async (updates: Partial<CampaignSettings>) => {
     const newCampaign = { ...campaign, ...updates };
     setCampaign(newCampaign);
@@ -168,15 +161,14 @@ export function useStore() {
         });
         
         if (res.ok) {
-           // סנכרון רשימת הלקוחות כדי שהקטלוג יתעדכן מיד
-           setClients(prev => prev.map(c => (c.id === auth.clientId || (c as any)._id === auth.clientId) ? { ...c, campaign: newCampaign } : c));
+           setClients(prev => prev.map(c => String(c.id || (c as any)._id) === String(auth.clientId) ? { ...c, campaign: newCampaign } : c));
         }
       } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }
   };
 
   const addPrize = async (prize: Prize) => {
-    const prizeWithClient = { ...prize, clientId: auth.clientId };
+    const prizeWithClient = { ...prize, clientId: String(auth.clientId) };
     try {
       const res = await fetch(`${API_URL}/api/prizes`, {
         method: 'POST',
@@ -191,7 +183,7 @@ export function useStore() {
   const deletePrize = async (id: string) => {
     try {
       await fetch(`${API_URL}/api/prizes/${id}`, { method: 'DELETE' });
-      setPrizes(prev => prev.filter(p => (p.id !== id && (p as any)._id !== id)));
+      setPrizes(prev => prev.filter(p => String(p.id || (p as any)._id) !== String(id)));
     } catch (e) { console.error(e); }
   };
 
@@ -202,12 +194,12 @@ export function useStore() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      setPrizes(prev => prev.map(p => (p.id === id || (p as any)._id === id) ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
+      setPrizes(prev => prev.map(p => String(p.id || (p as any)._id) === String(id) ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
     } catch (e) { console.error(e); }
   };
 
   const addPackage = async (pkg: Package) => {
-    const pkgWithClient = { ...pkg, clientId: auth.clientId };
+    const pkgWithClient = { ...pkg, clientId: String(auth.clientId) };
     try {
       const res = await fetch(`${API_URL}/api/packages`, {
         method: 'POST',
@@ -222,7 +214,7 @@ export function useStore() {
   const deletePackage = async (id: string) => {
     try { 
       await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); 
-      setPackages(prev => prev.filter(p => (p.id !== id && (p as any)._id !== id)));
+      setPackages(prev => prev.filter(p => String(p.id || (p as any)._id) !== String(id)));
     } catch (e) { console.error(e); }
   };
 
@@ -233,13 +225,13 @@ export function useStore() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      setPackages(prev => prev.map(p => (p.id === id || (p as any)._id === id) ? { ...p, ...updates } : p));
+      setPackages(prev => prev.map(p => String(p.id || (p as any)._id) === String(id) ? { ...p, ...updates } : p));
     } catch (e) { console.error(e); }
   };
 
   const addDonor = async (donor: Donor) => {
     const matched = [...packages].sort((a, b) => b.minAmount - a.minAmount).find(p => donor.totalDonated >= p.minAmount);
-    const donorWithPkg = { ...donor, packageId: matched ? (matched.id || (matched as any)._id) : undefined, clientId: auth.clientId };
+    const donorWithPkg = { ...donor, packageId: matched ? String(matched.id || (matched as any)._id) : undefined, clientId: String(auth.clientId) };
     try {
       const res = await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
@@ -251,10 +243,10 @@ export function useStore() {
       if (matched) {
         const newTix: Ticket[] = [];
         matched.rules.forEach(rule => {
-          const ids = rule.prizeId === 'ALL' ? prizes.map(p => p.id || (p as any)._id) : [rule.prizeId];
+          const ids = rule.prizeId === 'ALL' ? prizes.map(p => String(p.id || (p as any)._id)) : [String(rule.prizeId)];
           ids.forEach(pId => {
             for (let i = 0; i < rule.count; i++) {
-              newTix.push({ id: Math.random().toString(36).substr(2, 9), donorId: saved.id || saved._id, prizeId: pId, createdAt: Date.now(), clientId: auth.clientId });
+              newTix.push({ id: Math.random().toString(36).substr(2, 9), donorId: String(saved.id || saved._id), prizeId: pId, createdAt: Date.now(), clientId: String(auth.clientId) });
             }
           });
         });
@@ -270,8 +262,8 @@ export function useStore() {
     try {
       const res = await fetch(`${API_URL}/api/donors/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setDonors(prev => prev.filter(d => (d.id !== id && (d as any)._id !== id)));
-        setTickets(prev => prev.filter(t => (t.donorId !== id)));
+        setDonors(prev => prev.filter(d => String(d.id || (d as any)._id) !== String(id)));
+        setTickets(prev => prev.filter(t => String(t.donorId) !== String(id)));
       }
     } catch (e) { console.error(e); }
   };
@@ -281,24 +273,23 @@ export function useStore() {
       const res = await fetch(`${API_URL}/api/donors/${donorId}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ packageId }) 
+        body: JSON.stringify({ packageId: String(packageId) }) 
       });
       
       if (res.ok) {
-        setDonors(prev => prev.map(d => (d.id === donorId || (d as any)._id === donorId) ? { ...d, packageId } : d));
-        // ריענון נתונים כדי שכרטיסים ייווצרו בשרת ויימשכו לכאן
+        setDonors(prev => prev.map(d => String(d.id || (d as any)._id) === String(donorId) ? { ...d, packageId: String(packageId) } : d));
         setTimeout(() => fetchAllData(), 500);
       }
     } catch (e) { console.error(e); }
   };
 
   const performDraw = async (prizeId: string) => {
-    const pId = prizeId;
-    const prizeTickets = tickets.filter(t => (t.prizeId === pId));
+    const pId = String(prizeId);
+    const prizeTickets = tickets.filter(t => String(t.prizeId) === pId);
     if (prizeTickets.length === 0) return null;
-    const winner = donors.find(d => (d.id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId || (d as any)._id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId));
+    const winner = donors.find(d => String(d.id || (d as any)._id) === String(prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId));
     if (winner) {
-      await updatePrize(pId, { status: DrawStatus.DRAWN, winnerId: winner.id || (winner as any)._id });
+      await updatePrize(pId, { status: DrawStatus.DRAWN, winnerId: String(winner.id || (winner as any)._id) });
       return winner;
     }
     return null;
