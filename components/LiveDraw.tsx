@@ -21,16 +21,20 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   // תיקון זיהוי פרס: תמיכה ב-id וגם ב-_id מה-DB
   const prize = prizes.find((p: any) => String(p.id || p._id) === String(prizeId));
   
+  // סינון הכרטיסים השייכים להגרלה זו בלבד
+  const prizeTickets = useMemo(() => {
+    return tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
+  }, [tickets, prizeId]);
+
   // יצירת "בריכת שמות" שבה כל כרטיס הוא כניסה - אם לתורם יש 3 כרטיסים, שמו יופיע 3 פעמים בבריכה
   const namePool = useMemo(() => {
-    const prizeTickets = tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
     return prizeTickets.map((t: any) => {
       const donor = donors.find((d: any) => String(d.id || d._id) === String(t.donorId));
-      return donor?.name || '...';
+      return donor?.name || (isHE ? 'תורם' : 'Donor');
     });
-  }, [tickets, donors, prizeId]);
+  }, [prizeTickets, donors, isHE]);
 
-  const prizeTicketsCount = tickets.filter((t: any) => String(t.prizeId) === String(prizeId)).length;
+  const prizeTicketsCount = prizeTickets.length;
 
   // Sync with winner if already drawn
   useEffect(() => {
