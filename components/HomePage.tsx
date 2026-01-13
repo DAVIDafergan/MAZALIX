@@ -15,7 +15,8 @@ import {
   ChevronRight,
   PlayCircle,
   Menu,
-  ArrowDownCircle
+  ArrowDownCircle,
+  Star
 } from 'lucide-react';
 
 interface HomeProps { store: any; }
@@ -89,7 +90,6 @@ const HomePage: React.FC<HomeProps> = ({ store }) => {
                </div>
             </div>
           </div>
-          {/* Particles around the card */}
           <div className="absolute -top-4 -left-4 w-4 h-4 bg-[#C2A353] rounded-full blur-md animate-ping"></div>
           <div className="absolute -bottom-4 -right-4 w-6 h-6 bg-[#C2A353]/50 rounded-full blur-lg animate-bounce"></div>
         </div>
