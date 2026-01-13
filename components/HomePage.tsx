@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Language } from '../types';
 import { 
@@ -14,7 +14,6 @@ import {
   MessageSquare,
   ChevronRight,
   PlayCircle,
-  Menu,
   ArrowDownCircle,
   Star
 } from 'lucide-react';
@@ -24,48 +23,16 @@ interface HomeProps { store: any; }
 const HomePage: React.FC<HomeProps> = ({ store }) => {
   const { lang } = store;
   const isHE = lang === Language.HE;
-  const [scrolled, setScrolled] = useState(false);
-
-  // מעקב אחרי גלילה לטובת עיצוב ההדר
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   const scrollToContact = () => {
     document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
-    <div className="min-h-screen bg-[#020617] text-white selection:bg-[#C2A353]/30 selection:text-white">
+    <div className="min-h-screen bg-[#020617] text-white selection:bg-[#C2A353]/30 selection:text-white pb-20 animate-fade-in overflow-x-hidden">
       
-      {/* --- MODERN FLOATING HEADER --- */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 px-6 py-4 ${scrolled ? 'mt-0' : 'mt-4'}`}>
-        <div className={`max-w-7xl mx-auto backdrop-blur-xl border transition-all duration-500 rounded-[2rem] px-8 py-3 flex items-center justify-between ${scrolled ? 'bg-black/40 border-white/10 shadow-2xl' : 'bg-transparent border-transparent'}`}>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 luxury-gradient rounded-lg rotate-12 flex items-center justify-center text-black shadow-lg">
-              <Zap size={18} fill="currentColor" />
-            </div>
-            <span className="text-xl font-black italic tracking-tighter">MAZALIX</span>
-          </div>
-          
-          <div className="hidden md:flex items-center gap-8 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-            <button onClick={scrollToContact} className="hover:text-white transition-colors">{isHE ? 'צור קשר' : 'Contact'}</button>
-            <Link to="/admin" className="hover:text-white transition-colors">{isHE ? 'ניהול' : 'Admin'}</Link>
-          </div>
-
-          <button 
-            onClick={scrollToContact}
-            className="px-6 py-2 bg-white text-black text-[10px] font-black uppercase rounded-full hover:bg-[#C2A353] hover:text-white transition-all shadow-lg active:scale-95"
-          >
-            {isHE ? 'קמפיין חדש' : 'New Campaign'}
-          </button>
-        </div>
-      </nav>
-
       {/* --- HERO SECTION WITH INTERACTIVE ANIMATION --- */}
-      <section className="relative pt-32 pb-20 px-6 flex flex-col items-center text-center overflow-hidden min-h-[90vh] justify-center">
+      <section className="relative pt-24 pb-20 px-6 flex flex-col items-center text-center overflow-hidden min-h-[90vh] justify-center">
         
         {/* Animated Background Rays */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full -z-10">
@@ -121,12 +88,9 @@ const HomePage: React.FC<HomeProps> = ({ store }) => {
               <ChevronRight size={20} className="group-hover:translate-x-2 transition-transform" />
             </button>
             
-            <button 
-              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-              className="flex items-center gap-2 text-gray-400 hover:text-white text-xs font-black uppercase tracking-widest transition-all"
-            >
-              <ArrowDownCircle size={18} className="animate-bounce" /> {isHE ? 'גלה עוד' : 'Discover More'}
-            </button>
+            <Link to="/admin" className="text-white font-black uppercase text-xs tracking-[0.3em] transition-all hover:gold-text flex items-center gap-2">
+              <LayoutDashboard size={14} /> {isHE ? 'כניסת מנהלים' : 'Admin Login'}
+            </Link>
           </div>
         </div>
       </section>
