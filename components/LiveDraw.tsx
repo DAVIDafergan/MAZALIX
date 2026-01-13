@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Prize, Donor, Language, DrawStatus, Ticket } from '../types';
+import { Prize, Donor, Language, DrawStatus } from '../types';
 import { Trophy, Star, Sparkles, Share2, ArrowLeft, Users } from 'lucide-react';
 
 interface LiveDrawProps {
@@ -18,44 +18,36 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   const [winner, setWinner] = useState<Donor | null>(null);
   const [randomName, setRandomName] = useState('');
   
-  // 1. זיהוי פרס חסין: בודק גם id וגם _id וממיר הכל למחרוזת
+  // 1. זיהוי פרס חסין: בודק גם id וגם _id מה-DB ומבטיח סנכרון
   const prize = useMemo(() => {
-    return prizes.find((p: any) => 
-      String(p.id || p._id) === String(prizeId)
-    );
+    return prizes.find((p: any) => String(p.id || p._id) === String(prizeId));
   }, [prizes, prizeId]);
 
   // 2. סינון כרטיסים חסין: מוודא שה-prizeId על הכרטיס תואם למזהה מה-URL
   const prizeTickets = useMemo(() => {
     if (!prizeId) return [];
-    return tickets.filter((t: Ticket) => 
-      String(t.prizeId) === String(prizeId)
-    );
+    return tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
   }, [tickets, prizeId]);
 
   // 3. בניית "בריכת שמות" (Name Pool): כל כרטיס מייצג כניסה אחת של שם התורם
   const namePool = useMemo(() => {
     return prizeTickets.map((t: any) => {
-      const donor = donors.find((d: any) => 
-        String(d.id || d._id) === String(t.donorId)
-      );
+      const donor = donors.find((d: any) => String(d.id || d._id) === String(t.donorId));
       return donor?.name || (isHE ? 'תורם' : 'Donor');
     });
   }, [prizeTickets, donors, isHE]);
 
   const prizeTicketsCount = prizeTickets.length;
 
-  // סנכרון עם זוכה אם ההגרלה כבר בוצעה במסד הנתונים
+  // Sync with winner if already drawn in DB
   useEffect(() => {
     if (prize?.status === DrawStatus.DRAWN && prize.winnerId) {
-       const w = donors.find((d: any) => 
-         String(d.id || d._id) === String(prize.winnerId)
-       );
+       const w = donors.find((d: any) => String(d.id || d._id) === String(prize.winnerId));
        if (w) setWinner(w);
     }
   }, [prize, donors]);
 
-  // אפקט האנימציה - רץ על בריכת השמות
+  // אפקט האנימציה של השמות הרצים
   useEffect(() => {
     let interval: any;
     if (isDrawing && namePool.length > 0) {
@@ -72,9 +64,9 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
     setIsDrawing(true);
     setWinner(null);
     
-    // אנימציה יוקרתית של 5 שניות לפני חשיפת הזוכה
+    // השהיית אנימציה יוקרתית של 5 שניות
     setTimeout(async () => {
-      // קריאה לפונקציית ההגרלה ב-Store
+      // ביצוע ההגרלה ב-Store (פונקציה אסינכרונית שמעדכנת את השרת)
       const winningDonor = await performDraw(prizeId!);
       setIsDrawing(false);
       setWinner(winningDonor);
@@ -90,7 +82,6 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#020617] relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute inset-0 bg-gradient-to-tr from-[#C2A353]/10 to-transparent blur-[100px]"></div>
 
       <div className="relative z-10 w-full max-w-5xl space-y-10 flex flex-col items-center">
@@ -106,7 +97,6 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full items-center">
-            {/* Prize Display Card */}
             <div className="glass-card p-6 rounded-[2.5rem] border border-white/10 shadow-2xl">
                <div className="aspect-square rounded-2xl overflow-hidden relative border border-white/5">
                   <img src={prize.media?.[0]?.url || ''} className="w-full h-full object-cover" alt="" />
@@ -118,7 +108,6 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
                </div>
             </div>
 
-            {/* Draw Interface */}
             <div className="glass-card p-10 rounded-[3rem] aspect-square flex flex-col items-center justify-center text-center border border-white/10 shadow-2xl relative">
                 {isDrawing ? (
                   <div className="space-y-6">
