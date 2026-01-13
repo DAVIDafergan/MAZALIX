@@ -529,20 +529,22 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                      </thead>
                      <tbody>
                         {clientPrizes.map((p: Prize) => {
+                          // תיקון זיהוי מזהה חסין
                           const pId = p.id || (p as any)._id;
-                          const count = clientTickets.filter((t: any) => t.prizeId === pId).length;
+                          // תיקון השוואת מזהים לכרטיסים
+                          const count = clientTickets.filter((t: any) => String(t.prizeId) === String(pId)).length;
                           const ratio = clientTickets.length > 0 ? ((count / clientTickets.length) * 100).toFixed(1) : '0';
                           return (
                             <tr key={pId} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                                <td className="py-4 pr-4">
                                   <div className="flex items-center gap-3">
                                      <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
-                                        <img src={p.media[0]?.url} className="w-full h-full object-cover" />
+                                        <img src={p.media?.[0]?.url || ''} className="w-full h-full object-cover" />
                                      </div>
                                      <span className="font-bold truncate max-w-[150px]">{isHE ? p.titleHE : p.titleEN}</span>
                                   </div>
                                </td>
-                               <td className="py-4 px-4 gold-text font-black italic">₪{p.value.toLocaleString()}</td>
+                               <td className="py-4 px-4 gold-text font-black italic">₪{p.value?.toLocaleString() || 0}</td>
                                <td className="py-4 px-4 text-center">
                                   <span className="bg-white/5 px-2 py-1 rounded-md border border-white/10 font-black">{count.toLocaleString()}</span>
                                </td>
@@ -632,7 +634,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   ) : (
                     clientPrizes.sort((a:any, b:any) => a.order - b.order).map((p: any, idx: number) => {
                       const pId = p.id || p._id;
-                      const prizeTicketCount = clientTickets.filter((t: any) => t.prizeId === pId).length;
+                      const prizeTicketCount = clientTickets.filter((t: any) => String(t.prizeId) === String(pId)).length;
                       return (
                         <div key={pId} className="flex items-center justify-between p-2 glass-card rounded-xl border border-white/5 group">
                           <div className="flex items-center gap-3">
@@ -640,11 +642,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                               <button onClick={() => movePrize(pId, 'up')} disabled={idx === 0} className="hover:text-white disabled:opacity-10"><ArrowUp size={12}/></button>
                               <button onClick={() => movePrize(pId, 'down')} disabled={idx === clientPrizes.length - 1} className="hover:text-white disabled:opacity-10"><ArrowDown size={12}/></button>
                             </div>
-                           <img src={p.media[0]?.url} className="w-8 h-8 object-cover rounded-lg border border-white/10" />
+                           <img src={p.media?.[0]?.url || ''} className="w-8 h-8 object-cover rounded-lg border border-white/10" />
                            <div>
                              <p className="text-[10px] font-bold leading-none mb-0.5">{isHE ? p.titleHE : p.titleEN}</p>
                              <div className="flex items-center gap-2">
-                               <p className="text-[9px] gold-text font-black italic leading-none">₪{p.value.toLocaleString()}</p>
+                               <p className="text-[9px] gold-text font-black italic leading-none">₪{p.value?.toLocaleString() || 0}</p>
                                <span className="text-[7px] text-gray-500 font-black uppercase bg-white/5 px-1.5 py-0.5 rounded border border-white/5">{prizeTicketCount.toLocaleString()} TIX</span>
                              </div>
                            </div>
@@ -770,7 +772,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                           onClick={() => handleTogglePrizeInPkg(pId)}
                           className={`relative aspect-square rounded-lg border-2 overflow-hidden flex flex-col cursor-pointer transition-all ${isActive ? 'border-[#C2A353] bg-[#C2A353]/10 shadow-lg' : 'border-white/5 bg-white/5 grayscale hover:grayscale-0'}`}
                         >
-                          <img src={p.media[0]?.url} className="w-full h-full object-cover opacity-60" />
+                          <img src={p.media?.[0]?.url || ''} className="w-full h-full object-cover opacity-60" />
                           <div className="absolute inset-0 bg-black/30 flex items-center justify-center p-1">
                              <span className="text-[6px] font-black uppercase text-center text-white truncate">{isHE ? p.titleHE : p.titleEN}</span>
                           </div>
@@ -806,7 +808,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   return (
                     <div key={pkgId} style={{ borderColor: `${pkg.color}40` }} className="p-3 glass-card rounded-xl border flex flex-col gap-2 relative group">
                       <div className="flex justify-between items-start"><h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4><button onClick={() => deletePackage(pkgId)} className="text-red-500/20 hover:text-red-500 transition-all"><Trash2 size={10}/></button></div>
-                      <p className="text-xs font-black italic">₪{pkg.minAmount.toLocaleString()}</p>
+                      <p className="text-xs font-black italic">₪{pkg.minAmount?.toLocaleString() || 0}</p>
                       <div className="flex flex-wrap gap-1">{pkg.rules.map((r: any, i: number) => (<span key={i} className="text-[7px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-black uppercase text-gray-500">{r.prizeId === 'ALL' ? 'ALL' : 'ITEM'} x{r.count}</span>))}</div>
                     </div>
                   );
@@ -833,7 +835,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 {clientDonors.length === 0 ? (<p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>) : (
                   clientDonors.map((d: Donor) => {
                     const dId = d.id || (d as any)._id;
-                    const assignedPkg = clientPackages.find((p: Package) => (p.id === d.packageId || (p as any)._id === d.packageId));
+                    const assignedPkg = clientPackages.find((p: Package) => String(p.id || (p as any)._id) === String(d.packageId));
                     return (
                         <div key={dId} className="p-3 glass-card rounded-xl flex justify-between items-center border border-white/5 hover:border-white/10 transition-all">
                         <div className="flex items-center gap-3">
@@ -896,8 +898,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     return (
                     <div key={pId} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
                         <div className="flex gap-4 items-start mb-4">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={p.media[0]?.url} className="w-full h-full object-cover" /></div>
-                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===pId).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
+                            <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={p.media?.[0]?.url || ''} className="w-full h-full object-cover" /></div>
+                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=> String(t.prizeId) === String(pId)).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
                             <button onClick={() => copyPublicLink(pId)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
                         </div>
                         <div className="flex gap-2">
