@@ -54,10 +54,12 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
           </div>
           <div className="space-y-4">
             {multipleAccounts.map((donor) => {
-              const client = clients.find((c: any) => c.id === donor.clientId);
-              // תיקון לבקשתך: לוקח את השם שהמנהל הגדיר בהגדרות הקמפיין בלבד
+              // התאמה ל-id או ל-_id כפי שמופיע ב-JSON ששלחת
+              const client = clients.find((c: any) => (c.id === donor.clientId || c._id === donor.clientId));
+              
+              // שליפת שם הקמפיין מהגדרות הקמפיין (כמו בצילום מסך: חלב חיטים)
               const cName = isHE ? client?.campaign?.nameHE : client?.campaign?.nameEN;
-              const finalCampaignName = cName || (isHE ? 'קמפיין ללא שם' : 'Unnamed Campaign');
+              const finalCampaignName = cName || client?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
               
               return (
                 <button 
@@ -145,9 +147,9 @@ const DonorPortal: React.FC<PortalProps> = ({ store }) => {
   }, 0);
 
   // 4. זיהוי שם הקמפיין הספציפי שבו התורם רשום
-  const matchedClient = clients.find((c: any) => c.id === loggedInDonor.clientId);
+  const matchedClient = clients.find((c: any) => (c.id === loggedInDonor.clientId || c._id === loggedInDonor.clientId));
   const campaignName = matchedClient?.campaign?.nameHE || matchedClient?.displayName || (isHE ? 'קמפיין כללי' : 'General Campaign');
-  // לינק לשדרוג מהגדרות הקמפיין
+  // לינק לשדרוג מהגדרות הקמפיין (כמו בצילום מסך: causematch.com)
   const upgradeLink = matchedClient?.campaign?.donationUrl || '#';
 
   return (
