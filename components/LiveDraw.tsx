@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Prize, Donor, Language, DrawStatus } from '../types';
+import { Prize, Donor, Language, DrawStatus, Ticket } from '../types';
 import { Trophy, Star, Sparkles, Share2, ArrowLeft, Users } from 'lucide-react';
 
 interface LiveDrawProps {
@@ -18,16 +18,20 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   const [winner, setWinner] = useState<Donor | null>(null);
   const [randomName, setRandomName] = useState('');
   
-  // 1. זיהוי פרס חסין: בודק גם id וגם _id מה-DB ומבטיח סנכרון
+  // 1. זיהוי פרס חסין: בודק גם id וגם _id ומבטיח סנכרון
   const prize = useMemo(() => {
     return prizes.find((p: any) => String(p.id || p._id) === String(prizeId));
   }, [prizes, prizeId]);
 
-  // 2. סינון כרטיסים חסין: מוודא שה-prizeId על הכרטיס תואם למזהה מה-URL
+  // 2. סינון כרטיסים חסין: בודק התאמה לכל סוגי המזהים האפשריים
   const prizeTickets = useMemo(() => {
     if (!prizeId) return [];
-    return tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
-  }, [tickets, prizeId]);
+    return tickets.filter((t: any) => 
+      String(t.prizeId) === String(prizeId) || 
+      (prize && String(t.prizeId) === String(prize.id)) || 
+      (prize && (prize as any)._id && String(t.prizeId) === String((prize as any)._id))
+    );
+  }, [tickets, prizeId, prize]);
 
   // 3. בניית "בריכת שמות" (Name Pool): כל כרטיס מייצג כניסה אחת של שם התורם
   const namePool = useMemo(() => {
@@ -66,7 +70,7 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
     
     // השהיית אנימציה יוקרתית של 5 שניות
     setTimeout(async () => {
-      // ביצוע ההגרלה ב-Store (פונקציה אסינכרונית שמעדכנת את השרת)
+      // ביצוע ההגרלה ב-Store
       const winningDonor = await performDraw(prizeId!);
       setIsDrawing(false);
       setWinner(winningDonor);
@@ -103,7 +107,7 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                   <div className="absolute bottom-6 left-6 right-6">
                      <h3 className="text-2xl font-black italic text-white truncate">{isHE ? prize.titleHE : prize.titleEN}</h3>
-                     <p className="gold-text text-xl font-black italic">₪{prize.value?.toLocaleString()}</p>
+                     <p className="gold-text text-xl font-black italic">₪{prize.value?.toLocaleString() || 0}</p>
                   </div>
                </div>
             </div>

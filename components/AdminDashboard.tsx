@@ -13,7 +13,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   const { prizes, packages, donors, campaign, updateCampaign, addPrize, deletePrize, updatePrize, addPackage, deletePackage, updatePackage, addDonor, deleteDonor, tickets, lang, resetData, auth, login, logout, clients, addClient, unmappedDonors, assignPackageToDonor } = store;
   const isHE = lang === Language.HE;
   
-  // --- סינון נתונים לפי לקוח מחובר ---
+  // --- סינון נתונים לפי לקוח מחובר (שימוש ב-String להשוואה חסינה) ---
   const clientPrizes = auth.isSuperAdmin ? prizes : prizes.filter((p: any) => String(p.clientId) === String(auth.clientId));
   const clientPackages = auth.isSuperAdmin ? packages : packages.filter((p: any) => String(p.clientId) === String(auth.clientId));
   const clientDonors = auth.isSuperAdmin ? donors : donors.filter((d: any) => String(d.clientId) === String(auth.clientId));
@@ -529,10 +529,9 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                      </thead>
                      <tbody>
                         {clientPrizes.map((p: Prize) => {
-                          // תיקון זיהוי מזהה חסין
                           const pId = p.id || (p as any)._id;
-                          // תיקון השוואת מזהים לכרטיסים לחישוב מול השרת
-                          const count = clientTickets.filter((t: any) => String(t.prizeId) === String(pId)).length;
+                          // השוואה חסינה שבודקת גם id וגם _id כדי לספור כרטיסים בצורה מושלמת
+                          const count = clientTickets.filter((t: any) => String(t.prizeId) === String(p.id) || String(t.prizeId) === String((p as any)._id)).length;
                           const ratio = clientTickets.length > 0 ? ((count / clientTickets.length) * 100).toFixed(1) : '0';
                           return (
                             <tr key={pId} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
@@ -634,7 +633,8 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   ) : (
                     clientPrizes.sort((a:any, b:any) => a.order - b.order).map((p: any, idx: number) => {
                       const pId = p.id || p._id;
-                      const prizeTicketCount = clientTickets.filter((t: any) => String(t.prizeId) === String(pId)).length;
+                      // ספירה חסינה של כרטיסים לפי פרס
+                      const prizeTicketCount = clientTickets.filter((t: any) => String(t.prizeId) === String(p.id) || String(t.prizeId) === String((p as any)._id)).length;
                       return (
                         <div key={pId} className="flex items-center justify-between p-2 glass-card rounded-xl border border-white/5 group">
                           <div className="flex items-center gap-3">
@@ -895,11 +895,13 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 {clientPrizes.length === 0 ? (<p className="col-span-2 text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים להגרלה' : 'No prizes available for drawing'}</p>) : (
                     clientPrizes.map((p: any) => {
                     const pId = p.id || p._id;
+                    // ספירה חסינה של כרטיסים לפרס בטאב לייב
+                    const liveTicketCount = clientTickets.filter((t: any) => String(t.prizeId) === String(p.id) || String(t.prizeId) === String((p as any)._id)).length;
                     return (
                     <div key={pId} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
                         <div className="flex gap-4 items-start mb-4">
                             <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={p.media?.[0]?.url || ''} className="w-full h-full object-cover" /></div>
-                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=> String(t.prizeId) === String(pId)).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
+                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{liveTicketCount.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
                             <button onClick={() => copyPublicLink(pId)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
                         </div>
                         <div className="flex gap-2">
