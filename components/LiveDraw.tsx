@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Prize, Donor, Language, DrawStatus } from '../types';
+import { Prize, Donor, Language, DrawStatus, Ticket } from '../types';
 import { Trophy, Star, Sparkles, Share2, ArrowLeft, Users } from 'lucide-react';
 
 interface LiveDrawProps {
@@ -18,32 +18,44 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
   const [winner, setWinner] = useState<Donor | null>(null);
   const [randomName, setRandomName] = useState('');
   
-  // תיקון זיהוי פרס: תמיכה ב-id וגם ב-_id מה-DB
-  const prize = prizes.find((p: any) => String(p.id || p._id) === String(prizeId));
-  
-  // סינון הכרטיסים השייכים להגרלה זו בלבד
+  // 1. זיהוי פרס חסין: בודק גם id וגם _id וממיר הכל למחרוזת
+  const prize = useMemo(() => {
+    return prizes.find((p: any) => 
+      String(p.id || p._id) === String(prizeId)
+    );
+  }, [prizes, prizeId]);
+
+  // 2. סינון כרטיסים חסין: מוודא שה-prizeId על הכרטיס תואם למזהה מה-URL
   const prizeTickets = useMemo(() => {
-    return tickets.filter((t: any) => String(t.prizeId) === String(prizeId));
+    if (!prizeId) return [];
+    return tickets.filter((t: Ticket) => 
+      String(t.prizeId) === String(prizeId)
+    );
   }, [tickets, prizeId]);
 
-  // יצירת "בריכת שמות" שבה כל כרטיס הוא כניסה - אם לתורם יש 3 כרטיסים, שמו יופיע 3 פעמים בבריכה
+  // 3. בניית "בריכת שמות" (Name Pool): כל כרטיס מייצג כניסה אחת של שם התורם
   const namePool = useMemo(() => {
     return prizeTickets.map((t: any) => {
-      const donor = donors.find((d: any) => String(d.id || d._id) === String(t.donorId));
+      const donor = donors.find((d: any) => 
+        String(d.id || d._id) === String(t.donorId)
+      );
       return donor?.name || (isHE ? 'תורם' : 'Donor');
     });
   }, [prizeTickets, donors, isHE]);
 
   const prizeTicketsCount = prizeTickets.length;
 
-  // Sync with winner if already drawn
+  // סנכרון עם זוכה אם ההגרלה כבר בוצעה במסד הנתונים
   useEffect(() => {
     if (prize?.status === DrawStatus.DRAWN && prize.winnerId) {
-       const w = donors.find((d: any) => String(d.id || d._id) === String(prize.winnerId));
+       const w = donors.find((d: any) => 
+         String(d.id || d._id) === String(prize.winnerId)
+       );
        if (w) setWinner(w);
     }
   }, [prize, donors]);
 
+  // אפקט האנימציה - רץ על בריכת השמות
   useEffect(() => {
     let interval: any;
     if (isDrawing && namePool.length > 0) {
@@ -60,23 +72,33 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
     setIsDrawing(true);
     setWinner(null);
     
-    // אנימציה של 5 שניות
+    // אנימציה יוקרתית של 5 שניות לפני חשיפת הזוכה
     setTimeout(async () => {
-      // ביצוע ההגרלה ב-Store (פונקציה אסינכרונית)
+      // קריאה לפונקציית ההגרלה ב-Store
       const winningDonor = await performDraw(prizeId!);
       setIsDrawing(false);
       setWinner(winningDonor);
     }, 5000);
   };
 
-  if (!prize) return <div className="p-20 text-center font-black italic text-white bg-[#020617] min-h-screen">Prize Not Found</div>;
+  if (!prize) return (
+    <div className="p-20 text-center font-black italic text-white bg-[#020617] min-h-screen flex flex-col items-center justify-center">
+      <p className="text-2xl mb-4">Prize Not Found</p>
+      {!publicOnly && <button onClick={() => navigate('/admin')} className="text-[#C2A353] underline">Back to Admin</button>}
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#020617] relative overflow-hidden">
+      {/* Background Decor */}
       <div className="absolute inset-0 bg-gradient-to-tr from-[#C2A353]/10 to-transparent blur-[100px]"></div>
 
       <div className="relative z-10 w-full max-w-5xl space-y-10 flex flex-col items-center">
-        {!publicOnly && <button onClick={() => navigate('/admin')} className="absolute top-0 left-0 p-3 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors"><ArrowLeft size={20}/></button>}
+        {!publicOnly && (
+          <button onClick={() => navigate('/admin')} className="absolute top-0 left-0 p-3 bg-white/5 rounded-full text-white hover:bg-white/10 transition-colors">
+            <ArrowLeft size={20}/>
+          </button>
+        )}
         
         <div className="text-center space-y-2">
           <p className="gold-text font-black uppercase tracking-[0.5em] text-xs italic">{isHE ? 'הגרלה חיה' : 'Live Draw'}</p>
@@ -84,17 +106,19 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 w-full items-center">
+            {/* Prize Display Card */}
             <div className="glass-card p-6 rounded-[2.5rem] border border-white/10 shadow-2xl">
                <div className="aspect-square rounded-2xl overflow-hidden relative border border-white/5">
-                  <img src={prize.media[0]?.url} className="w-full h-full object-cover" alt="" />
+                  <img src={prize.media?.[0]?.url || ''} className="w-full h-full object-cover" alt="" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                   <div className="absolute bottom-6 left-6 right-6">
                      <h3 className="text-2xl font-black italic text-white truncate">{isHE ? prize.titleHE : prize.titleEN}</h3>
-                     <p className="gold-text text-xl font-black italic">₪{prize.value.toLocaleString()}</p>
+                     <p className="gold-text text-xl font-black italic">₪{prize.value?.toLocaleString()}</p>
                   </div>
                </div>
             </div>
 
+            {/* Draw Interface */}
             <div className="glass-card p-10 rounded-[3rem] aspect-square flex flex-col items-center justify-center text-center border border-white/10 shadow-2xl relative">
                 {isDrawing ? (
                   <div className="space-y-6">
@@ -117,7 +141,12 @@ const LiveDraw: React.FC<LiveDrawProps> = ({ store, publicOnly = false }) => {
                        <p className="text-6xl font-black gold-text italic">{prizeTicketsCount}</p>
                     </div>
                     {publicOnly ? (
-                      <p className="text-gray-400 font-bold italic animate-pulse">{isHE ? 'ממתין למנהל המערכת...' : 'Waiting for Admin...'}</p>
+                      <div className="space-y-4">
+                        <p className="text-gray-400 font-bold italic animate-pulse">{isHE ? 'ממתין למנהל המערכת...' : 'Waiting for Admin...'}</p>
+                        <div className="flex items-center gap-2 justify-center text-[10px] text-gray-600 font-black uppercase">
+                          <Users size={12} /> {isHE ? 'ההגרלה תתבצע בשידור חי' : 'Drawing live soon'}
+                        </div>
+                      </div>
                     ) : (
                       <button 
                         onClick={handleStartDraw} 
