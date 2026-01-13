@@ -38,7 +38,7 @@ export function useStore() {
         
         // שליפת הגדרות קמפיין מתוך אובייקט הלקוח המחובר
         if (auth.clientId && !auth.isSuperAdmin) {
-          const currentClient = dbClients.find((c: any) => c.id === auth.clientId);
+          const currentClient = dbClients.find((c: any) => (c.id === auth.clientId || c._id === auth.clientId));
           if (currentClient?.campaign) {
             setCampaign(currentClient.campaign);
           }
@@ -55,7 +55,7 @@ export function useStore() {
       
       const filterByClient = (data: any[]) => 
         auth.isLoggedIn && auth.clientId && !auth.isSuperAdmin 
-          ? data.filter((item: any) => item.clientId === auth.clientId)
+          ? data.filter((item: any) => (item.clientId === auth.clientId))
           : data;
 
       if (pRes.ok) setPrizes(filterByClient(await pRes.json()).sort((a: any, b: any) => a.order - b.order));
@@ -102,7 +102,7 @@ export function useStore() {
     // Fallback למקרה של לקוחות רגילים שעדיין לא בשרת (תאימות לאחור)
     const client = clients.find(c => (c.username === username || c.displayName === username) && c.password === pass);
     if (client) {
-      setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: client.id });
+      setAuth({ isLoggedIn: true, isSuperAdmin: false, clientId: client.id || (client as any)._id });
       return true;
     }
     return false;
@@ -169,7 +169,7 @@ export function useStore() {
         
         if (res.ok) {
            // סנכרון רשימת הלקוחות כדי שהקטלוג יתעדכן מיד
-           setClients(prev => prev.map(c => c.id === auth.clientId ? { ...c, campaign: newCampaign } : c));
+           setClients(prev => prev.map(c => (c.id === auth.clientId || (c as any)._id === auth.clientId) ? { ...c, campaign: newCampaign } : c));
         }
       } catch (e) { console.error("❌ שגיאה בשמירת קמפיין:", e); }
     }
@@ -191,7 +191,7 @@ export function useStore() {
   const deletePrize = async (id: string) => {
     try {
       await fetch(`${API_URL}/api/prizes/${id}`, { method: 'DELETE' });
-      setPrizes(prev => prev.filter(p => p.id !== id));
+      setPrizes(prev => prev.filter(p => (p.id !== id && (p as any)._id !== id)));
     } catch (e) { console.error(e); }
   };
 
@@ -202,7 +202,7 @@ export function useStore() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      setPrizes(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
+      setPrizes(prev => prev.map(p => (p.id === id || (p as any)._id === id) ? { ...p, ...updates } : p).sort((a, b) => a.order - b.order));
     } catch (e) { console.error(e); }
   };
 
@@ -222,7 +222,7 @@ export function useStore() {
   const deletePackage = async (id: string) => {
     try { 
       await fetch(`${API_URL}/api/packages/${id}`, { method: 'DELETE' }); 
-      setPackages(prev => prev.filter(p => p.id !== id));
+      setPackages(prev => prev.filter(p => (p.id !== id && (p as any)._id !== id)));
     } catch (e) { console.error(e); }
   };
 
@@ -233,13 +233,13 @@ export function useStore() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates)
       });
-      setPackages(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+      setPackages(prev => prev.map(p => (p.id === id || (p as any)._id === id) ? { ...p, ...updates } : p));
     } catch (e) { console.error(e); }
   };
 
   const addDonor = async (donor: Donor) => {
     const matched = [...packages].sort((a, b) => b.minAmount - a.minAmount).find(p => donor.totalDonated >= p.minAmount);
-    const donorWithPkg = { ...donor, packageId: matched?.id, clientId: auth.clientId };
+    const donorWithPkg = { ...donor, packageId: matched ? (matched.id || (matched as any)._id) : undefined, clientId: auth.clientId };
     try {
       const res = await fetch(`${API_URL}/api/donors`, {
         method: 'POST',
@@ -251,10 +251,10 @@ export function useStore() {
       if (matched) {
         const newTix: Ticket[] = [];
         matched.rules.forEach(rule => {
-          const ids = rule.prizeId === 'ALL' ? prizes.map(p => p.id) : [rule.prizeId];
+          const ids = rule.prizeId === 'ALL' ? prizes.map(p => p.id || (p as any)._id) : [rule.prizeId];
           ids.forEach(pId => {
             for (let i = 0; i < rule.count; i++) {
-              newTix.push({ id: Math.random().toString(36).substr(2, 9), donorId: saved.id, prizeId: pId, createdAt: Date.now(), clientId: auth.clientId });
+              newTix.push({ id: Math.random().toString(36).substr(2, 9), donorId: saved.id || saved._id, prizeId: pId, createdAt: Date.now(), clientId: auth.clientId });
             }
           });
         });
@@ -269,27 +269,34 @@ export function useStore() {
   const deleteDonor = async (id: string) => {
     try {
       await fetch(`${API_URL}/api/donors/${id}`, { method: 'DELETE' });
-      setDonors(prev => prev.filter(d => d.id !== id));
-      setTickets(prev => prev.filter(t => t.donorId !== id)); // ניקוי כרטיסים משויכים ב-State
+      // עדכון ה-State ללא ריענון
+      setDonors(prev => prev.filter(d => (d.id !== id && (d as any)._id !== id)));
+      setTickets(prev => prev.filter(t => (t.donorId !== id)));
     } catch (e) { console.error(e); }
   };
 
   const assignPackageToDonor = async (donorId: string, packageId: string) => {
-    const pkg = packages.find(p => p.id === packageId);
-    if (!pkg) return;
     try {
-      await fetch(`${API_URL}/api/donors/${donorId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packageId }) });
-      setDonors(prev => prev.map(d => d.id === donorId ? { ...d, packageId } : d));
+      await fetch(`${API_URL}/api/donors/${donorId}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ packageId }) 
+      });
+      
+      // עדכון ה-State מיידית כדי שייעלם מהחריגות
+      setDonors(prev => prev.map(d => (d.id === donorId || (d as any)._id === donorId) ? { ...d, packageId } : d));
+      
+      // טעינה מחדש של הכרטיסים והנתונים כדי לסנכרן זכאויות
       fetchAllData(); 
     } catch (e) { console.error(e); }
   };
 
   const performDraw = async (prizeId: string) => {
-    const prizeTickets = tickets.filter(t => t.prizeId === prizeId);
+    const prizeTickets = tickets.filter(t => (t.prizeId === prizeId));
     if (prizeTickets.length === 0) return null;
-    const winner = donors.find(d => d.id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId);
+    const winner = donors.find(d => (d.id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId || (d as any)._id === prizeTickets[Math.floor(Math.random() * prizeTickets.length)].donorId));
     if (winner) {
-      await updatePrize(prizeId, { status: DrawStatus.DRAWN, winnerId: winner.id });
+      await updatePrize(prizeId, { status: DrawStatus.DRAWN, winnerId: winner.id || (winner as any)._id });
       return winner;
     }
     return null;

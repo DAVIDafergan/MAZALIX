@@ -131,14 +131,14 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
           phone: donorPhone,
           email: donorEmail,
           totalDonated: donationAmount,
-          packageId: matchedPackage ? matchedPackage.id : undefined
+          packageId: matchedPackage ? (matchedPackage.id || (matchedPackage as any)._id) : undefined
         };
         
         addDonor(newDonor);
         
         // שיוך אוטומטי למסלול ויצירת כרטיסים
         if (matchedPackage) {
-            assignPackageToDonor(donorId, matchedPackage.id);
+            assignPackageToDonor(donorId, matchedPackage.id || (matchedPackage as any)._id);
         }
       });
 
@@ -347,21 +347,21 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
   };
 
   const movePrize = (id: string, direction: 'up' | 'down') => {
-    const idx = clientPrizes.findIndex((p: Prize) => p.id === id);
+    const idx = clientPrizes.findIndex((p: Prize) => (p.id === id || (p as any)._id === id));
     const newPrizes = [...clientPrizes];
     if (direction === 'up' && idx > 0) {
       [newPrizes[idx], newPrizes[idx - 1]] = [newPrizes[idx - 1], newPrizes[idx]];
     } else if (direction === 'down' && idx < clientPrizes.length - 1) {
       [newPrizes[idx], newPrizes[idx + 1]] = [newPrizes[idx + 1], newPrizes[idx]];
     }
-    newPrizes.forEach((p, i) => updatePrize(p.id, { order: i }));
+    newPrizes.forEach((p, i) => updatePrize(p.id || (p as any)._id, { order: i }));
   };
 
   const onCreatePrize = async () => {
     if (!newPrize.titleHE) return;
     
     if (editingPrize) {
-      await updatePrize(editingPrize.id, newPrize);
+      await updatePrize(editingPrize.id || (editingPrize as any)._id, newPrize);
       setEditingPrize(null);
       alert(isHE ? 'עודכן בהצלחה' : 'Updated successfully');
     } else {
@@ -487,7 +487,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">{isHE ? 'רשימת לקוחות פעילים' : 'Active Clients List'}</h3>
                 <div className="grid grid-cols-1 gap-2">
                   {clients && clients.map((client: any) => (
-                    <div key={client.id} className="p-3 glass-card rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div key={client.id || client._id} className="p-3 glass-card rounded-xl border border-white/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center font-black gold-text">{client.name?.charAt(0)}</div>
                         <div>
@@ -499,10 +499,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                         </div>
                       </div>
                       <div className="flex gap-2 w-full md:w-auto">
-                        <button onClick={() => openClientPublicLink(client.id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
+                        <button onClick={() => openClientPublicLink(client.id || client._id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
                           <Eye size={12} className="gold-text" /> {isHE ? 'צפה' : 'View'}
                         </button>
-                        <button onClick={() => copyClientPublicLink(client.id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
+                        <button onClick={() => copyClientPublicLink(client.id || client._id)} className="flex-1 md:flex-none p-2 bg-white/5 border border-white/10 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1.5 hover:bg-white/10">
                           <Copy size={12} className="gold-text" /> {isHE ? 'העתק לינק' : 'Share'}
                         </button>
                         <button className="p-2 text-gray-700 hover:text-red-500 transition-colors"><Trash2 size={12}/></button>
@@ -529,10 +529,11 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                      </thead>
                      <tbody>
                         {clientPrizes.map((p: Prize) => {
-                          const count = clientTickets.filter((t: any) => t.prizeId === p.id).length;
+                          const pId = p.id || (p as any)._id;
+                          const count = clientTickets.filter((t: any) => t.prizeId === pId).length;
                           const ratio = clientTickets.length > 0 ? ((count / clientTickets.length) * 100).toFixed(1) : '0';
                           return (
-                            <tr key={p.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                            <tr key={pId} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
                                <td className="py-4 pr-4">
                                   <div className="flex items-center gap-3">
                                      <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
@@ -630,13 +631,14 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     <p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים בקטלוג עדיין' : 'No prizes in catalog yet'}</p>
                   ) : (
                     clientPrizes.sort((a:any, b:any) => a.order - b.order).map((p: any, idx: number) => {
-                      const prizeTicketCount = clientTickets.filter((t: any) => t.prizeId === p.id).length;
+                      const pId = p.id || p._id;
+                      const prizeTicketCount = clientTickets.filter((t: any) => t.prizeId === pId).length;
                       return (
-                        <div key={p.id} className="flex items-center justify-between p-2 glass-card rounded-xl border border-white/5 group">
+                        <div key={pId} className="flex items-center justify-between p-2 glass-card rounded-xl border border-white/5 group">
                           <div className="flex items-center gap-3">
                             <div className="flex flex-col text-gray-600 scale-75">
-                              <button onClick={() => movePrize(p.id, 'up')} disabled={idx === 0} className="hover:text-white disabled:opacity-10"><ArrowUp size={12}/></button>
-                              <button onClick={() => movePrize(p.id, 'down')} disabled={idx === clientPrizes.length - 1} className="hover:text-white disabled:opacity-10"><ArrowDown size={12}/></button>
+                              <button onClick={() => movePrize(pId, 'up')} disabled={idx === 0} className="hover:text-white disabled:opacity-10"><ArrowUp size={12}/></button>
+                              <button onClick={() => movePrize(pId, 'down')} disabled={idx === clientPrizes.length - 1} className="hover:text-white disabled:opacity-10"><ArrowDown size={12}/></button>
                             </div>
                            <img src={p.media[0]?.url} className="w-8 h-8 object-cover rounded-lg border border-white/10" />
                            <div>
@@ -651,7 +653,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                             {/* כפתור עריכה */}
                             <button onClick={() => handleEditPrize(p)} className="text-gray-700 hover:text-[#C2A353] p-1.5 transition-colors"><Edit2 size={12}/></button>
                             {/* כפתור מחיקה */}
-                            <button onClick={(e) => { e.stopPropagation(); if(confirm(isHE ? 'למחוק מתנה זו?' : 'Delete this prize?')) deletePrize(p.id); }} className="text-gray-700 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={12}/></button>
+                            <button onClick={(e) => { e.stopPropagation(); if(confirm(isHE ? 'למחוק מתנה זו?' : 'Delete this prize?')) deletePrize(pId); }} className="text-gray-700 hover:text-red-500 p-1.5 transition-colors"><Trash2 size={12}/></button>
                           </div>
                         </div>
                       );
@@ -676,35 +678,38 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                     <p className="text-xs italic">{isHE ? 'אין חריגות במערכת' : 'No unmapped donors'}</p>
                   </div>
                 ) : (
-                  clientUnmapped.map((d: Donor) => (
-                    <div key={d.id} className="p-4 glass-card border border-red-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:bg-red-500/[0.02] transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center font-black text-red-500">{d.name.charAt(0)}</div>
-                        <div>
-                          <p className="text-xs font-black">{d.name}</p>
-                          <p className="text-[9px] text-gray-500 tracking-tighter italic">₪{d.totalDonated.toLocaleString()}</p>
+                  clientUnmapped.map((d: Donor) => {
+                    const dId = d.id || (d as any)._id;
+                    return (
+                      <div key={dId} className="p-4 glass-card border border-red-500/20 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group hover:bg-red-500/[0.02] transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center font-black text-red-500">{d.name.charAt(0)}</div>
+                          <div>
+                            <p className="text-xs font-black">{d.name}</p>
+                            <p className="text-[9px] text-gray-500 tracking-tighter italic">₪{d.totalDonated.toLocaleString()}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                          <select 
+                              className="bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] font-bold outline-none flex-1 md:w-32 focus:border-[#C2A353]"
+                              value={selectedManualPkg[dId] || ''}
+                              onChange={(e) => setSelectedManualPkg(prev => ({...prev, [dId]: e.target.value}))}
+                          >
+                              <option value="">{isHE ? 'בחר מסלול...' : 'Select...'}</option>
+                              {clientPackages.map((pkg: Package) => (
+                                  <option key={pkg.id || (pkg as any)._id} value={pkg.id || (pkg as any)._id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
+                              ))}
+                          </select>
+                          <button 
+                              onClick={() => handleManualAssign(dId)}
+                              className="p-2 luxury-gradient text-black rounded-lg hover:scale-105 transition-all text-[8px] font-black uppercase whitespace-nowrap"
+                          >
+                              {isHE ? 'שיוך' : 'Assign'}
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 w-full md:w-auto">
-                        <select 
-                            className="bg-white/5 border border-white/10 p-2 rounded-lg text-[10px] font-bold outline-none flex-1 md:w-32 focus:border-[#C2A353]"
-                            value={selectedManualPkg[d.id] || ''}
-                            onChange={(e) => setSelectedManualPkg(prev => ({...prev, [d.id]: e.target.value}))}
-                        >
-                            <option value="">{isHE ? 'בחר מסלול...' : 'Select...'}</option>
-                            {clientPackages.map((pkg: Package) => (
-                                <option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>
-                            ))}
-                        </select>
-                        <button 
-                            onClick={() => handleManualAssign(d.id)}
-                            className="p-2 luxury-gradient text-black rounded-lg hover:scale-105 transition-all text-[8px] font-black uppercase whitespace-nowrap"
-                        >
-                            {isHE ? 'שיוך' : 'Assign'}
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -757,11 +762,12 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                       <span className="text-[7px] font-black uppercase mt-1">{isHE ? 'הכל' : 'ALL'}</span>
                     </div>
                     {clientPrizes.map((p: any) => {
-                      const isActive = (pkgForm.rules || []).some(r => String(r.prizeId) === String(p.id));
+                      const pId = p.id || p._id;
+                      const isActive = (pkgForm.rules || []).some(r => String(r.prizeId) === String(pId));
                       return (
                         <div 
-                          key={p.id}
-                          onClick={() => handleTogglePrizeInPkg(p.id)}
+                          key={pId}
+                          onClick={() => handleTogglePrizeInPkg(pId)}
                           className={`relative aspect-square rounded-lg border-2 overflow-hidden flex flex-col cursor-pointer transition-all ${isActive ? 'border-[#C2A353] bg-[#C2A353]/10 shadow-lg' : 'border-white/5 bg-white/5 grayscale hover:grayscale-0'}`}
                         >
                           <img src={p.media[0]?.url} className="w-full h-full object-cover opacity-60" />
@@ -779,7 +785,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   <div className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5">
                     <p className="text-[8px] font-black text-gray-500 uppercase mb-2">{isHE ? 'הגדרת כמות כרטיסים לכל פרס נבחר:' : 'Configure Ticket Counts:'}</p>
                     {pkgForm.rules.map(r => {
-                      const matchedPrize = clientPrizes.find(p => String(p.id) === String(r.prizeId));
+                      const matchedPrize = clientPrizes.find(p => String(p.id || (p as any)._id) === String(r.prizeId));
                       return (
                         <div key={r.prizeId} className="flex items-center justify-between gap-2 p-1.5 bg-white/5 rounded-lg border border-white/5">
                           <span className="text-[9px] font-bold truncate max-w-[120px]">{String(r.prizeId) === 'ALL' ? (isHE ? 'כל המתנות' : 'ALL PRIZES') : (isHE ? matchedPrize?.titleHE : 'Prize')}</span>
@@ -795,13 +801,16 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                 <button onClick={onCreatePackage} className="w-full luxury-gradient p-2.5 rounded-xl text-black font-black text-xs uppercase tracking-tight shadow-lg">{isHE ? 'צור מסלול' : 'Create Route'}</button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {clientPackages.map((pkg: any) => (
-                  <div key={pkg.id} style={{ borderColor: `${pkg.color}40` }} className="p-3 glass-card rounded-xl border flex flex-col gap-2 relative group">
-                    <div className="flex justify-between items-start"><h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4><button onClick={() => deletePackage(pkg.id)} className="text-red-500/20 hover:text-red-500 transition-all"><Trash2 size={10}/></button></div>
-                    <p className="text-xs font-black italic">₪{pkg.minAmount.toLocaleString()}</p>
-                    <div className="flex flex-wrap gap-1">{pkg.rules.map((r: any, i: number) => (<span key={i} className="text-[7px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-black uppercase text-gray-500">{r.prizeId === 'ALL' ? 'ALL' : 'ITEM'} x{r.count}</span>))}</div>
-                  </div>
-                ))}
+                {clientPackages.map((pkg: any) => {
+                  const pkgId = pkg.id || pkg._id;
+                  return (
+                    <div key={pkgId} style={{ borderColor: `${pkg.color}40` }} className="p-3 glass-card rounded-xl border flex flex-col gap-2 relative group">
+                      <div className="flex justify-between items-start"><h4 className="font-black text-[11px] leading-tight" style={{ color: pkg.color || '#C2A353' }}>{isHE ? pkg.nameHE : pkg.nameEN}</h4><button onClick={() => deletePackage(pkgId)} className="text-red-500/20 hover:text-red-500 transition-all"><Trash2 size={10}/></button></div>
+                      <p className="text-xs font-black italic">₪{pkg.minAmount.toLocaleString()}</p>
+                      <div className="flex flex-wrap gap-1">{pkg.rules.map((r: any, i: number) => (<span key={i} className="text-[7px] bg-white/5 px-1.5 py-0.5 rounded border border-white/5 font-black uppercase text-gray-500">{r.prizeId === 'ALL' ? 'ALL' : 'ITEM'} x{r.count}</span>))}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -815,7 +824,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                   <input placeholder={isHE ? 'שם התורם' : 'Donor Name'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.name} onChange={e => setManualDonorForm(prev => ({...prev, name: e.target.value}))} />
                   <input placeholder={isHE ? 'טלפון' : 'Phone'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.phone} onChange={e => setManualDonorForm(prev => ({...prev, phone: e.target.value}))} />
                   <input type="number" placeholder={isHE ? 'סכום תרומה ₪' : 'Donation Amount ₪'} className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.amount} onChange={e => setManualDonorForm(prev => ({...prev, amount: e.target.value}))} />
-                  <select className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.packageId} onChange={e => setManualDonorForm(prev => ({...prev, packageId: e.target.value}))}><option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>{clientPackages.map((pkg: any) => (<option key={pkg.id} value={pkg.id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>))}</select>
+                  <select className="bg-white/10 p-2 rounded-lg text-xs font-bold outline-none border border-white/5 focus:border-[#C2A353]" value={manualDonorForm.packageId} onChange={e => setManualDonorForm(prev => ({...prev, packageId: e.target.value}))}><option value="">{isHE ? 'בחר מסלול (אופציונלי)' : 'Select Route (Optional)'}</option>{clientPackages.map((pkg: any) => (<option key={pkg.id || pkg._id} value={pkg.id || pkg._id}>{isHE ? pkg.nameHE : pkg.nameEN}</option>))}</select>
                   <button type="submit" className="md:col-span-2 luxury-gradient p-2.5 rounded-xl text-black font-black text-[10px] uppercase shadow-lg hover:scale-[1.01] transition-all flex items-center justify-center gap-2"><UserCheck size={14}/> {isHE ? 'הוסף תורם' : 'Add Donor'}</button>
                 </form>
               </div>
@@ -823,9 +832,10 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1 text-xs">
                 {clientDonors.length === 0 ? (<p className="text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין תורמים רשומים עדיין' : 'No registered donors yet'}</p>) : (
                   clientDonors.map((d: Donor) => {
-                    const assignedPkg = clientPackages.find((p: Package) => p.id === d.packageId);
+                    const dId = d.id || (d as any)._id;
+                    const assignedPkg = clientPackages.find((p: Package) => (p.id === d.packageId || (p as any)._id === d.packageId));
                     return (
-                        <div key={d.id} className="p-3 glass-card rounded-xl flex justify-between items-center border border-white/5 hover:border-white/10 transition-all">
+                        <div key={dId} className="p-3 glass-card rounded-xl flex justify-between items-center border border-white/5 hover:border-white/10 transition-all">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-black gold-text border border-white/10">{d.name.charAt(0)}</div>
                             <div className="min-w-0">
@@ -841,7 +851,7 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
                         <div className="flex items-center gap-4">
                             <p className="text-[10px] font-black gold-text italic tracking-tighter">₪{d.totalDonated.toLocaleString()}</p>
                             {/* כפתור מחיקת תורם */}
-                            <button onClick={() => {if(confirm(isHE ? 'למחוק תורם זה?' : 'Delete this donor?')) deleteDonor(d.id)}} className="text-gray-700 hover:text-red-500 transition-colors p-1"><Trash2 size={12}/></button>
+                            <button onClick={() => {if(confirm(isHE ? 'למחוק תורם זה?' : 'Delete this donor?')) deleteDonor(dId)}} className="text-gray-700 hover:text-red-500 transition-colors p-1"><Trash2 size={12}/></button>
                         </div>
                         </div>
                     )
@@ -881,19 +891,22 @@ const AdminDashboard: React.FC<AdminProps> = ({ store }) => {
               <h2 className="text-base font-black italic">{isHE ? 'מרכז הגרלות לייב' : 'Live Draw Center'}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {clientPrizes.length === 0 ? (<p className="col-span-2 text-center text-xs text-gray-600 py-10 italic">{isHE ? 'אין פרסים להגרלה' : 'No prizes available for drawing'}</p>) : (
-                    clientPrizes.map((p: any) => (
-                    <div key={p.id} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
+                    clientPrizes.map((p: any) => {
+                    const pId = p.id || p._id;
+                    return (
+                    <div key={pId} className="p-4 glass-card rounded-xl flex flex-col justify-between border border-white/5 group hover:border-[#C2A353]/30 transition-all">
                         <div className="flex gap-4 items-start mb-4">
                             <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0"><img src={p.media[0]?.url} className="w-full h-full object-cover" /></div>
-                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===p.id).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
-                            <button onClick={() => copyPublicLink(p.id)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
+                            <div className="flex-1 min-w-0"><p className="font-bold text-sm leading-tight truncate mb-1">{isHE ? p.titleHE : p.titleEN}</p><div className="flex items-center gap-2"><TicketIcon size={10} className="text-blue-500" /><span className="text-[9px] text-gray-400 font-black uppercase">{clientTickets.filter((t:any)=>t.prizeId===pId).length.toLocaleString()} {isHE ? 'כרטיסים' : 'TICKETS'}</span></div></div>
+                            <button onClick={() => copyPublicLink(pId)} className="p-2 bg-white/5 rounded-lg text-gray-400 hover:text-white transition-all"><Copy size={12}/></button>
                         </div>
                         <div className="flex gap-2">
-                            <Link to={`/draw/${p.id}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}><Play size={12} fill="currentColor" />{isHE ? 'הפעל הגרלה' : 'Start Live Draw'}</Link>
-                            <Link to={`/live/${p.id}`} target="_blank" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"><ExternalLink size={16}/></Link>
+                            <Link to={`/draw/${pId}`} className={`flex items-center justify-center gap-2 flex-1 text-center py-2.5 rounded-xl font-black text-xs transition-all ${p.status === DrawStatus.DRAWN ? 'bg-white/5 text-gray-500' : 'luxury-gradient text-black shadow-lg hover:scale-[1.02]'}`}><Play size={12} fill="currentColor" />{isHE ? 'הפעל הגרלה' : 'Start Live Draw'}</Link>
+                            <Link to={`/live/${pId}`} target="_blank" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-white transition-all"><ExternalLink size={16}/></Link>
                         </div>
                     </div>
-                    ))
+                    );
+                  })
                 )}
               </div>
             </div>
